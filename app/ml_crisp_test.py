@@ -35,7 +35,7 @@ class CrispDMAnalysis:
         
     def modeling(self):
         # ACP pour la réduction de dimension
-        self.pca = PCA(n_components=2)
+        self.pca = PCA(n_components=3)  # Modifié de 2 à 3
         self.X_pca = self.pca.fit_transform(self.X_scaled)
         
         # K-means pour la segmentation
@@ -61,24 +61,39 @@ class CrispDMAnalysis:
         plt.show()
         
     def _plot_results(self):
-        """Visualisation des résultats"""
-        fig = plt.figure(figsize=(15, 5))
+        """Visualisation des résultats avec graphique 3D"""
+        # Plot 3D des clusters
+        fig = plt.figure(figsize=(20, 5))
         
-        # Plot ACP avec clusters
-        plt.subplot(1, 3, 1)
-        plt.scatter(self.X_pca[:, 0], self.X_pca[:, 1], c=self.clusters, cmap='viridis')
-        plt.title('Segmentation (ACP + K-means)')
+        # Premier subplot: Vue 3D des clusters
+        ax = fig.add_subplot(131, projection='3d')
+        scatter = ax.scatter(self.X_pca[:, 0], self.X_pca[:, 1], self.X_pca[:, 2],
+                           c=self.clusters, cmap='viridis')
+        ax.set_title('Segmentation 3D (ACP + K-means)')
+        ax.set_xlabel('PC1')
+        ax.set_ylabel('PC2')
+        ax.set_zlabel('PC3')
+        plt.colorbar(scatter, ax=ax, label='Clusters')
         
-        # Plot des anomalies
-        plt.subplot(1, 3, 2)
-        plt.scatter(self.X_pca[:, 0], self.X_pca[:, 1], c=self.anomalies, cmap='RdYlBu')
-        plt.title('Détection d\'anomalies')
+        # Deuxième subplot: Vue 3D des anomalies
+        ax = fig.add_subplot(132, projection='3d')
+        scatter = ax.scatter(self.X_pca[:, 0], self.X_pca[:, 1], self.X_pca[:, 2],
+                           c=self.anomalies, cmap='RdYlBu')
+        ax.set_title('Détection d\'anomalies 3D')
+        ax.set_xlabel('PC1')
+        ax.set_ylabel('PC2')
+        ax.set_zlabel('PC3')
+        plt.colorbar(scatter, ax=ax, label='Anomalies')
         
-        # Plot variance expliquée
-        plt.subplot(1, 3, 3)
-        plt.bar(range(len(self.pca.explained_variance_ratio_)), 
-                self.pca.explained_variance_ratio_)
+        # Troisième subplot: Variance expliquée
+        ax = fig.add_subplot(133)
+        components = range(1, len(self.pca.explained_variance_ratio_) + 1)
+        plt.bar(components, self.pca.explained_variance_ratio_)
         plt.title('Variance expliquée par composante')
+        plt.xlabel('Composante')
+        plt.ylabel('Ratio de variance expliquée')
+        for i, v in enumerate(self.pca.explained_variance_ratio_):
+            plt.text(i + 1, v, f'{v:.1%}', ha='center', va='bottom')
         
         plt.tight_layout()
         plt.show()
@@ -91,12 +106,36 @@ class CrispDMAnalysis:
         print("\nVariance expliquée par l'ACP:")
         print(f"Première composante: {self.pca.explained_variance_ratio_[0]:.2%}")
         print(f"Deuxième composante: {self.pca.explained_variance_ratio_[1]:.2%}")
+        print(f"Troisième composante: {self.pca.explained_variance_ratio_[2]:.2%}")
+        print(f"Variance totale expliquée: {sum(self.pca.explained_variance_ratio_):.2%}")
 
-# Exécution de l'analyse
+    def export_results(self):
+        """Export des résultats vers Excel"""
+        # Création d'une copie du DataFrame original
+        results_df = self.df.copy()
+        
+        # Ajout des colonnes pour les clusters et anomalies
+        results_df['Cluster'] = self.clusters
+        # Conversion des -1 en 0 et 1 en 1 pour les anomalies
+        results_df['Est_Anomalie'] = (self.anomalies == -1).astype(int)
+        
+        # Ajout des composantes principales
+        results_df['PC1'] = self.X_pca[:, 0]
+        results_df['PC2'] = self.X_pca[:, 1]
+        results_df['PC3'] = self.X_pca[:, 2]
+        
+        # Export vers Excel
+        output_path = "resultats_analyse.xlsx"
+        results_df.to_excel(output_path, index=False)
+        print(f"\nLes résultats ont été exportés vers: {output_path}")
+        return results_df
+
+# Modification de l'exécution pour inclure l'export
 if __name__ == "__main__":
     analysis = CrispDMAnalysis(data)
     analysis.data_preparation()
     analysis.modeling()
     analysis.evaluation()
+    results = analysis.export_results()
 
 
