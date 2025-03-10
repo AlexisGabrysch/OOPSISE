@@ -1,0 +1,14 @@
+[client]
+showSidebarNavigation = false
+
+[server]
+maxUploadSize = 2000
+maxMessageSize = 2048
+
+[theme]
+# Cyberpunk-inspired color scheme
+primaryColor = "#00f2ff"  # Bright cyan for highlights
+backgroundColor = "#141619"  # Dark background
+secondaryBackgroundColor = "#1f2430"  # Slightly lighter panels
+textColor = "#d8d9da"  # Light text
+font = "monospace"
