@@ -275,50 +275,121 @@ st.set_page_config(page_title="Dashboard", page_icon="📊", layout="wide")
 def apply_custom_css():
     st.markdown("""
     <style>
-        /* Dark background with grid */
+        /* Dark background with enhanced grid */
         .main {
             background-color: #0b0f19;
             background-image: 
                 linear-gradient(rgba(26, 32, 44, 0.5) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(26, 32, 44, 0.5) 1px, transparent 1px);
             background-size: 20px 20px;
+            background-position: center;
         }
         
-        /* Panel styling */
-        .css-1r6slb0, .css-1wrcr25 {
-            background-color: #181b24 !important;
-            border: 1px solid rgba(0, 255, 198, 0.2) !important;
-            border-radius: 3px !important;
-            padding: 5px 10px !important;
+        /* Panel styling with alternating glowing borders */
+        .grafana-panel {
+            background-color: #181b24;
+            border: 1px solid rgba(255, 89, 0, 0.2);
+            border-radius: 3px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 0 10px rgba(0, 255, 198, 0.15);
+            position: relative;
+            overflow: hidden;
         }
         
-        /* Headers */
+        .grafana-panel:nth-child(odd) {
+            border: 1px solid rgba(0, 255, 198, 0.2);
+            box-shadow: 0 0 10px rgba(255, 89, 0, 0.15);
+        }
+        
+        /* Animated border effect for panels */
+        .grafana-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #0b0f19, #ff5900, #00f2ff, #0b0f19);
+            background-size: 200% 100%;
+            animation: flowingBorder 4s linear infinite;
+        }
+        
+        @keyframes flowingBorder {
+            0% { background-position: 0% 0; }
+            100% { background-position: 200% 0; }
+        }
+        
+        /* Panel header with neon glow effect */
+        .panel-header {
+            font-size: 16px;
+            font-weight: bold;
+            color: #ff5900;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid rgba(255, 89, 0, 0.3);
+            text-shadow: 0 0 5px rgba(255, 89, 0, 0.7);
+        }
+        
+        /* Alternate panel headers with cyan */
+        .grafana-panel:nth-child(odd) .panel-header {
+            color: #00f2ff;
+            border-bottom: 1px solid rgba(0, 242, 255, 0.3);
+            text-shadow: 0 0 5px rgba(0, 242, 255, 0.7);
+        }
+        
+        /* Headers with enhanced glow */
         h1, h2, h3 {
             color: #E9F8FD !important;
             font-family: 'Orbitron', sans-serif;
-            text-shadow: 0 0 10px rgba(0, 242, 255, 0.7);
+            text-shadow: 0 0 10px rgba(0, 242, 255, 0.7), 0 0 20px rgba(0, 242, 255, 0.4);
+            letter-spacing: 1px;
         }
         
-        /* Text styling */
+        /* Title with multi-color glow */
+        h1 {
+            background: linear-gradient(90deg, #00f2ff, #ff5900);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 15px rgba(0, 242, 255, 0.6), 0 0 25px rgba(255, 89, 0, 0.6);
+        }
+        
+        /* Text styling with better contrast */
         p, li, .stMarkdown, .stText {
             color: #ced4da !important;
+            text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
         }
         
-        /* Button styling */
+        /* Button styling with orange hover */
         .stButton>button {
             background-color: #0b0f19;
             color: #00f2ff;
             border: 1px solid #00f2ff;
+            transition: all 0.3s ease;
         }
         
         .stButton>button:hover {
-            background-color: #00f2ff;
+            background-color: #ff5900;
             color: #0b0f19;
+            border: 1px solid #ff5900;
+            box-shadow: 0 0 15px rgba(255, 89, 0, 0.8);
+        }
+        
+        /* Alternate button with opposite color scheme */
+        .stButton:nth-child(odd)>button {
+            color: #ff5900;
+            border: 1px solid #ff5900;
+        }
+        
+        .stButton:nth-child(odd)>button:hover {
+            background-color: #00f2ff;
+            border: 1px solid #00f2ff;
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.8);
         }
         
         /* Widget labels */
         .css-81oif8, .css-17ihxae {
-            color: #00f2ff !important;
+            color: #ff5900 !important;
         }
         
         /* Dataframe styling */
@@ -328,29 +399,90 @@ def apply_custom_css():
         
         .dataframe th {
             background-color: #252a37 !important;
-            color: #00f2ff !important;
+            color: #ff5900 !important;
         }
         
-        /* Custom panels */
-        .grafana-panel {
+        /* Tabs with neon indicator */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 8px;
+        }
+        
+        .stTabs [data-baseweb="tab"] {
             background-color: #181b24;
-            border: 1px solid rgba(0, 255, 198, 0.2);
-            border-radius: 3px;
-            padding: 15px;
-            margin-bottom: 15px;
+            color: #d8d9da;
+            border: 1px solid rgba(0, 242, 255, 0.2);
+            border-radius: 4px 4px 0px 0px;
+            padding: 10px 16px;
+            transition: all 0.3s ease;
         }
         
-        .panel-header {
-            font-size: 16px;
-            font-weight: bold;
-            color: #E9F8FD;
+        .stTabs [aria-selected="true"] {
+            background-color: #181b24 !important;
+            color: #ff5900 !important;
+            border-bottom: 2px solid #ff5900 !important;
+            box-shadow: 0 -2px 8px rgba(255, 89, 0, 0.5);
+        }
+        
+        /* Metric cards with enhanced styling */
+        .metric-card {
+            background-color: #181b24;
+            border-radius: 4px;
+            padding: 15px;
+            border-left: 3px solid #ff5900;
+            box-shadow: 0 0 8px rgba(255, 89, 0, 0.3);
             margin-bottom: 10px;
-            padding-bottom: 5px;
-            border-bottom: 1px solid rgba(0, 255, 198, 0.3);
+        }
+        
+        .metric-card:nth-child(odd) {
+            border-left: 3px solid #00f2ff;
+            box-shadow: 0 0 8px rgba(0, 242, 255, 0.3);
+        }
+        
+        /* Scrollbars with neon colors */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #0b0f19;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #252a37;
+            border-radius: 5px;
+            border: 1px solid #ff5900;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #313846;
+            border: 1px solid #00f2ff;
+        }
+        
+        /* Form inputs with neon glow */
+        .stTextInput>div>div>input, 
+        .stNumberInput>div>div>input,
+        .stSelectbox>div>div>select {
+            background-color: #1f2430;
+            color: #d8d9da;
+            border: 1px solid #ff5900 !important;
+        }
+        
+        .stTextInput>div>div>input:focus, 
+        .stNumberInput>div>div>input:focus,
+        .stSelectbox>div>div>select:focus {
+            border: 1px solid #00f2ff !important;
+            box-shadow: 0 0 10px rgba(0, 242, 255, 0.5) !important;
+        }
+        
+        /* Progress bar with gradient */
+        .stProgress > div > div > div {
+            background: linear-gradient(90deg, #00f2ff, #ff5900) !important;
         }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
     """, unsafe_allow_html=True)
+
 
 def load_data(uploaded_file):
     """Load data from uploaded file based on file extension"""
@@ -363,23 +495,305 @@ def load_data(uploaded_file):
     else:
         return None
         
-def create_metric_card(title, value, delta=None, color="#00f2ff"):
-    """Create a Grafana-like metric card"""
+def create_metric_card(title, value, delta=None):
+    """Create a Grafana-like metric card with cyberpunk colors, harmonized with cyan"""
+    # Use consistent cyan color for all metrics
+    color = "#00f2ff"
+        
     if delta:
-        delta_html = f"<span style='color:{'#00ff9d' if float(delta) >= 0 else '#ff5b79'};font-size:0.8rem;'>{'+' if float(delta) >= 0 else ''}{delta}%</span>"
+        delta_color = "#00ff9d" if float(delta) >= 0 else "#ff5900"
+        delta_html = f"<span style='color:{delta_color};font-size:0.8rem;'>{'+' if float(delta) >= 0 else ''}{delta}%</span>"
     else:
         delta_html = ""
+    
+    glow_color = "rgba(0, 242, 255, 0.3)"
         
     st.markdown(f"""
-    <div style='background-color: #181b24; padding: 15px; border-radius: 3px; border: 1px solid rgba(0, 255, 198, 0.2); margin-bottom: 10px;'>
+    <div class='metric-card-container' style='background-color: #181b24; padding: 15px; border-radius: 3px; 
+         border: 1px solid {color}; box-shadow: 0 0 8px {glow_color}; margin-bottom: 10px;'>
         <p style='color: rgba(255,255,255,0.7); font-size:0.8rem; margin-bottom:0;'>{title}</p>
         <p style='color: {color}; font-size:1.5rem; font-weight:bold; margin:0;'>{value} {delta_html}</p>
     </div>
     """, unsafe_allow_html=True)
+def create_stacked_area_chart(df, timestamp_col, group_col):
+    """Create a cyberpunk-styled stacked area chart for temporal visualization"""
+    if timestamp_col not in df.columns or group_col not in df.columns:
+        st.error(f"Columns {timestamp_col} or {group_col} not found in dataframe")
+        return None
+    
+    # Make sure timestamp is in datetime format
+    if not pd.api.types.is_datetime64_any_dtype(df[timestamp_col]):
+        try:
+            df = parse_timestamp(df.copy(), timestamp_col)
+        except Exception as e:
+            st.error(f"Could not parse timestamp column: {str(e)}")
+            return None
+    
+    # Group data by timestamp and group column
+    # We need to count occurrences for each group per time period
+    
+    # First, determine the appropriate time resolution based on data range
+    min_date = df[timestamp_col].min()
+    max_date = df[timestamp_col].max()
+    date_range = (max_date - min_date).total_seconds()
+    
+    if date_range < 3600:  # Less than 1 hour
+        freq = '1min'
+        date_format = '%H:%M:%S'
+    elif date_range < 86400:  # Less than 1 day
+        freq = '1H'
+        date_format = '%H:%M'
+    elif date_range < 604800:  # Less than 1 week
+        freq = '1D'
+        date_format = '%Y-%m-%d'
+    elif date_range < 2592000:  # Less than 1 month
+        freq = '1W'
+        date_format = '%Y-%m-%d'
+    else:
+        freq = '1M'
+        date_format = '%Y-%m'
+    
+    # Create a copy of the dataframe with just timestamp and group columns
+    chart_df = df[[timestamp_col, group_col]].copy()
+    
+    # Ensure group column is string type
+    chart_df[group_col] = chart_df[group_col].astype(str)
+    
+    # For categorical columns with too many unique values, limit to top N
+    if chart_df[group_col].nunique() > 10:
+        top_groups = chart_df[group_col].value_counts().nlargest(10).index.tolist()
+        chart_df.loc[~chart_df[group_col].isin(top_groups), group_col] = 'Other'
+    
+    # Get counts for each group by time period
+    chart_df['count'] = 1
+    
+    # Resample to desired frequency 
+    # Set timestamp as index
+    chart_df = chart_df.set_index(timestamp_col)
+    
+    # Group by time period and group column
+    temp = chart_df.groupby([pd.Grouper(freq=freq), group_col])['count'].sum().reset_index()
+    
+    # Reshape for area chart
+    pivot_df = temp.pivot(index=timestamp_col, columns=group_col, values='count').fillna(0)
+    
+    # Create stacked area chart with cyberpunk styling
+    fig = go.Figure()
+    
+    # Define cyberpunk colors palette
+    colors = [
+        '#00f2ff',  # cyan
+        '#ff5900',  # orange
+        '#00ff9d',  # green
+        '#a742f5',  # purple
+        '#ff3864',  # pink
+        '#ffb000',  # yellow
+        '#36a2eb',  # blue
+        '#29c7ac',  # teal
+        '#ff6384',  # red
+        '#00b8d9',  # light blue
+        '#ff9e00',  # amber
+    ]
+    
+    # Add traces for each group
+    for i, col in enumerate(pivot_df.columns):
+        color = colors[i % len(colors)]
+        color_rgba = f"rgba({int(color[1:3], 16)}, {int(color[3:5], 16)}, {int(color[5:7], 16)}, 0.7)"
+        
+        fig.add_trace(go.Scatter(
+            x=pivot_df.index,
+            y=pivot_df[col],
+            mode='lines',
+            stackgroup='one',
+            name=col,
+            line=dict(width=0.5, color=color),
+            fillcolor=color_rgba,
+            hovertemplate='%{y} events<br>%{x}<extra>' + col + '</extra>'
+        ))
+    
+    # Apply cyberpunk styling
+    fig.update_layout(
+        template="plotly_dark",
+        plot_bgcolor='rgba(23, 28, 38, 0.8)',
+        paper_bgcolor='rgba(0, 0, 0, 0)',
+        margin=dict(l=10, r=10, t=30, b=10),
+        height=350,
+        legend=dict(
+            orientation="h",
+            y=1.02,
+            x=0.5,
+            xanchor="center",
+            font=dict(color='#d8d9da', size=10),
+            bgcolor='rgba(23, 28, 38, 0.7)',
+            bordercolor='rgba(0, 242, 255, 0.2)'
+        ),
+        xaxis=dict(
+            title=None,
+            showgrid=True,
+            gridcolor='rgba(26, 32, 44, 0.8)',
+            showline=True,
+            linecolor='rgba(0, 242, 255, 0.5)',
+            tickformat=date_format,
+            tickfont=dict(color='#d8d9da')
+        ),
+        yaxis=dict(
+            title='Event Count',
+            showgrid=True,
+            gridcolor='rgba(26, 32, 44, 0.8)',
+            showline=True,
+            linecolor='rgba(0, 242, 255, 0.5)',
+            tickfont=dict(color='#d8d9da'),
+            title_font=dict(color='#00f2ff')
+        ),
+        hovermode='x unified'
+    )
+    
+    # Add a subtle glow effect around the plot area
+    fig.update_layout(
+        shapes=[
+            # Bottom border with gradient
+            dict(
+                type="rect",
+                xref="paper", yref="paper",
+                x0=0, y0=0, x1=1, y1=0.02,
+                line_width=0,
+                fillcolor="rgba(0, 242, 255, 0.3)",
+                layer="below"
+            ),
+            # Top border with gradient
+            dict(
+                type="rect",
+                xref="paper", yref="paper",
+                x0=0, y0=0.98, x1=1, y1=1,
+                line_width=0,
+                fillcolor="rgba(0, 242, 255, 0.3)",
+                layer="below"
+            )
+        ]
+    )
+    
+    return fig
+def cyberpunk_plot_layout(fig, title=None, height=400):
+    """Apply cyberpunk styling to plotly figures with orange accents"""
+    # Define colors
+    bg_color = '#181b24'
+    grid_color = 'rgba(40, 45, 60, 0.8)'
+    text_color = '#d8d9da'
+    accent_colors = ['#00f2ff', '#ff5900', '#00ff9d', '#a742f5']
 
+    # Update layout
+    fig.update_layout(
+        template="plotly_dark",
+        plot_bgcolor=bg_color,
+        paper_bgcolor='rgba(0,0,0,0)',
+        margin=dict(l=10, r=10, t=40 if title else 10, b=10),
+        height=height,
+        title=dict(
+            text=title,
+            font=dict(
+                size=18,
+                color='#ff5900',
+                family='Orbitron'
+            ),
+            x=0.5
+        ) if title else None,
+        font=dict(
+            family='monospace',
+            color=text_color
+        ),
+        xaxis=dict(
+            showgrid=True,
+            gridwidth=1,
+            gridcolor=grid_color,
+            zerolinecolor='rgba(255, 89, 0, 0.3)',
+            tickfont=dict(color=text_color)
+        ),
+        yaxis=dict(
+            showgrid=True,
+            gridwidth=1, 
+            gridcolor=grid_color,
+            zerolinecolor='rgba(0, 242, 255, 0.3)',
+            tickfont=dict(color=text_color)
+        ),
+        legend=dict(
+            font=dict(color=text_color),
+            bgcolor='rgba(24, 27, 36, 0.7)',
+            bordercolor='rgba(255, 89, 0, 0.2)',
+        )
+    )
+
+    # Add a grid effect in the background
+    fig.add_shape(
+        type="rect",
+        xref="paper", yref="paper",
+        x0=0, y0=0, x1=1, y1=1,
+        line=dict(color="rgba(0,0,0,0)"),
+        layer="below",
+        fillcolor="rgba(0,0,0,0)",
+        opacity=0.1
+    )
+
+    # Add a subtle glow effect around the plot
+    fig.update_layout(
+        shapes=[
+            # Bottom border with gradient
+            dict(
+                type="rect",
+                xref="paper", yref="paper",
+                x0=0, y0=0, x1=1, y1=0.02,
+                line_width=0,
+                fillcolor="rgba(255, 89, 0, 0.3)",
+                layer="below"
+            ),
+            # Top border with gradient
+            dict(
+                type="rect",
+                xref="paper", yref="paper",
+                x0=0, y0=0.98, x1=1, y1=1,
+                line_width=0,
+                fillcolor="rgba(0, 242, 255, 0.3)",
+                layer="below"
+            )
+        ]
+    )
+
+    # Update the colors of any traces if they exist
+    if fig.data:
+        for i, trace in enumerate(fig.data):
+            color_idx = i % len(accent_colors)
+            try:
+                if isinstance(trace, go.Bar) or isinstance(trace, go.Histogram):
+                    trace.marker.color = accent_colors[color_idx]
+                    trace.marker.line = dict(width=0.5, color=accent_colors[(color_idx+1) % len(accent_colors)])
+                elif isinstance(trace, go.Scatter):
+                    trace.line.color = accent_colors[color_idx]
+                elif hasattr(trace, 'marker') and trace.marker:
+                    trace.marker.color = accent_colors[color_idx]
+            except:
+                pass
+
+    return fig
 # Function to create a Kibana-like time selector
-def time_selector():
+def time_selector(on_refresh_callback=None):
+    """
+    Kibana-style time selector with refresh button
+    Returns time range parameters and a boolean indicating if refresh was clicked
+    """
     st.markdown("<div class='panel-header'>TIME RANGE</div>", unsafe_allow_html=True)
+    
+    # Initialize session state for time range parameters if they don't exist
+    if "time_range_option" not in st.session_state:
+        st.session_state.time_range_option = "Last 4 hours"
+    if "custom_start_date" not in st.session_state:
+        st.session_state.custom_start_date = datetime.datetime.now() - timedelta(days=7)
+    if "custom_start_time" not in st.session_state:
+        st.session_state.custom_start_time = datetime.time(0, 0)
+    if "custom_end_date" not in st.session_state:
+        st.session_state.custom_end_date = datetime.datetime.now()
+    if "custom_end_time" not in st.session_state:
+        st.session_state.custom_end_time = datetime.time(23, 59)
+    if "last_refresh_time" not in st.session_state:
+        st.session_state.last_refresh_time = datetime.datetime.now()
     
     # Time selector options
     time_options = [
@@ -396,18 +810,35 @@ def time_selector():
         "Custom range"
     ]
     
+    # Track if options were changed since last refresh
+    options_changed = False
+    
     col1, col2 = st.columns([3, 1])
     
     with col1:
+        # When the time range selection changes, we'll just update the session state
+        # but not trigger a refresh
         time_range = st.selectbox(
             "Select time range",
             time_options,
-            index=3,  # Default to "Last 4 hours"
-            key="time_range_selector"
+            index=time_options.index(st.session_state.time_range_option),
+            key="time_range_selector",
+            on_change=lambda: setattr(st.session_state, 'time_range_option', st.session_state.time_range_selector)
         )
+        
+        # Track if user changed the selection
+        if time_range != st.session_state.time_range_option:
+            options_changed = True
+            st.session_state.time_range_option = time_range
     
+    # Handle refresh button with a callback
     with col2:
-        refresh_button = st.button("🔄 Refresh", key="refresh_time_button")
+        def on_refresh():
+            st.session_state.last_refresh_time = datetime.datetime.now()
+            if on_refresh_callback:
+                on_refresh_callback()
+        
+        refresh_button = st.button("🔄 Refresh", key="refresh_time_button", on_click=on_refresh)
     
     # Get current time for reference
     now = datetime.datetime.now()
@@ -456,28 +887,67 @@ def time_selector():
     elif time_range == "Custom range":
         col1, col2 = st.columns(2)
         with col1:
-            start_date = st.date_input("Start date", now - timedelta(days=7))
-            start_time_input = st.time_input("Start time", datetime.time(0, 0))
+            start_date = st.date_input("Start date", 
+                                      st.session_state.custom_start_date, 
+                                      key="start_date")
+            start_time_input = st.time_input("Start time", 
+                                           st.session_state.custom_start_time, 
+                                           key="start_time")
+            
+            # Check if values changed
+            if start_date != st.session_state.custom_start_date:
+                st.session_state.custom_start_date = start_date
+                options_changed = True
+            if start_time_input != st.session_state.custom_start_time:
+                st.session_state.custom_start_time = start_time_input
+                options_changed = True
+                
             start_time = datetime.datetime.combine(start_date, start_time_input)
         with col2:
-            end_date = st.date_input("End date", now)
-            end_time_input = st.time_input("End time", datetime.time(23, 59))
+            end_date = st.date_input("End date", 
+                                    st.session_state.custom_end_date,
+                                    key="end_date")
+            end_time_input = st.time_input("End time", 
+                                         st.session_state.custom_end_time,
+                                         key="end_time")
+            
+            # Check if values changed
+            if end_date != st.session_state.custom_end_date:
+                st.session_state.custom_end_date = end_date
+                options_changed = True
+            if end_time_input != st.session_state.custom_end_time:
+                st.session_state.custom_end_time = end_time_input
+                options_changed = True
+                
             now = datetime.datetime.combine(end_date, end_time_input)
         time_unit = "custom"
         time_value = None
     
-    # Display the absolute time range in Kibana style
+    # Display the absolute time range in Kibana style with last refresh time
+    last_refresh = st.session_state.last_refresh_time.strftime('%Y-%m-%d %H:%M:%S')
+    
     st.markdown(f"""
     <div style='background-color: #181b24; padding: 10px; border-radius: 3px; border: 1px solid rgba(0, 255, 198, 0.2); margin: 10px 0;'>
         <span style='color: rgba(255,255,255,0.7); font-size: 0.8rem;'>Current time range:</span>
         <span style='color: #00f2ff; font-size: 0.9rem; margin-left: 5px;'>{start_time.strftime('%Y-%m-%d %H:%M:%S')} → {now.strftime('%Y-%m-%d %H:%M:%S')}</span>
-        <div style='margin-top: 5px;'>
+        <div style='margin-top: 5px; display: flex; justify-content: space-between;'>
             <span style='color: #00f2ff; font-size: 0.8rem; background-color: rgba(0, 242, 255, 0.1); padding: 3px 8px; border-radius: 10px; border: 1px solid rgba(0, 242, 255, 0.2);'>
                 {time_range}
+            </span>
+            <span style='color: rgba(255,255,255,0.5); font-size: 0.8rem;'>
+                Last refreshed: {last_refresh}
             </span>
         </div>
     </div>
     """, unsafe_allow_html=True)
+    
+    # If options changed but refresh wasn't clicked, show an indicator
+    if options_changed and not refresh_button:
+        st.markdown("""
+        <div style='background-color: #181b24; padding: 8px; border-radius: 3px; border: 1px solid rgba(255, 91, 121, 0.3); margin: 10px 0; display: flex; align-items: center;'>
+            <span style='color: #ff5b79; font-size: 0.9rem;'>⚠️ Time range changed but not applied. Click Refresh to update data.</span>
+        </div>
+        """, unsafe_allow_html=True)
     
     return start_time, now, time_unit, time_value, refresh_button
 
@@ -499,17 +969,17 @@ def filter_df_by_time(df, timestamp_col, start_time, end_time):
         return df
 # Function to detect timestamp columns in a dataframe
 def detect_timestamp_cols(df):
-    """Detect potential timestamp columns in a dataframe"""
+    """Detect potential timestamp columns in a dataframe including Elasticsearch formats"""
     timestamp_cols = []
     
     for col in df.columns:
         # Check if column name suggests time
         col_lower = col.lower()
-        if any(time_word in col_lower for time_word in ['time', 'date', 'timestamp', 'datetime', 'created', 'modified']):
+        if any(time_word in col_lower for time_word in ['time', 'date', 'timestamp', '@timestamp', 'datetime', 'created', 'modified']):
             timestamp_cols.append(col)
             continue
         
-        # Check if column type is datetime
+        # Check if column type is already datetime
         if pd.api.types.is_datetime64_any_dtype(df[col]):
             timestamp_cols.append(col)
             continue
@@ -517,7 +987,18 @@ def detect_timestamp_cols(df):
         # Check if column contains datetime strings
         if df[col].dtype == 'object':
             # Sample the column to check for datetime patterns
-            sample = df[col].dropna().head(10)
+            sample = df[col].dropna().head(10).astype(str)
+            
+            # Check for common date/time patterns
+            if sample.str.contains(r'\d{4}-\d{2}-\d{2}').any() or \
+               sample.str.contains(r'\d{1,2}/\d{1,2}/\d{2,4}').any() or \
+               sample.str.contains(r'[A-Za-z]{3}\s\d{1,2},\s\d{4}').any() or \
+               sample.str.contains(r'\d{1,2}:\d{2}:\d{2}').any() or \
+               sample.str.contains('@').any():  # Elasticsearch format often contains @
+                timestamp_cols.append(col)
+                continue
+                
+            # Try converting to see if pandas can parse it
             try:
                 pd.to_datetime(sample)
                 timestamp_cols.append(col)
@@ -526,7 +1007,284 @@ def detect_timestamp_cols(df):
     
     return timestamp_cols
 
-# Add this function to improve timestamp handling for Elasticsearch/Kibana formats
+def create_ip_port_flow_diagram(df, src_ip_col, dst_ip_col, dst_port_col, filter_dst_ip=None, show_only_top10=False):
+    """Create a cyberpunk-styled network flow diagram showing source IPs to destination ports"""
+    
+    # Validate columns exist in dataframe
+    if not all(col in df.columns for col in [src_ip_col, dst_ip_col, dst_port_col]):
+        st.error(f"Required columns not found in dataframe")
+        return None
+        
+    # Filter by destination IP if specified
+    if filter_dst_ip:
+        flow_df = df[df[dst_ip_col] == filter_dst_ip].copy()
+        title = f"Network Flows to {filter_dst_ip}"
+    else:
+        # Take a sample to avoid overcrowding (if no specific dst IP)
+        # Get top destination IPs by count
+        top_dst_ips = df[dst_ip_col].value_counts().nlargest(1).index.tolist()
+        if top_dst_ips:
+            flow_df = df[df[dst_ip_col] == top_dst_ips[0]].copy()
+            title = f"Network Flows to {top_dst_ips[0]}"
+        else:
+            flow_df = df.copy()
+            title = "Network Flows"
+            
+    # If still too many rows, sample
+    if len(flow_df) > 3000: # Increased maximum size to 3x more
+        flow_df = flow_df.sample(3000)
+    
+    # Prepare data - group by source IP and destination port
+    flow_counts = flow_df.groupby([src_ip_col, dst_port_col]).size().reset_index()
+    flow_counts.columns = [src_ip_col, dst_port_col, 'count']
+    
+    # Convert port numbers to strings
+    flow_counts[dst_port_col] = flow_counts[dst_port_col].astype(str)
+    
+    # Calculate total count per source IP for sorting
+    src_ip_totals = flow_counts.groupby(src_ip_col)['count'].sum().reset_index()
+    src_ip_totals = src_ip_totals.sort_values('count', ascending=False)
+    
+    # Filter to top 10 source IPs by count if requested
+    if show_only_top10:
+        top_srcs = src_ip_totals.nlargest(10, 'count')[src_ip_col].tolist()
+        flow_counts = flow_counts[flow_counts[src_ip_col].isin(top_srcs)]
+    
+    # Get unique source IPs and destination ports
+    unique_srcs = src_ip_totals[src_ip_col].tolist() # Already sorted by count
+    unique_ports = flow_counts[dst_port_col].unique()
+    
+    # Limit to top 15 sources and top 20 ports by count if too many (and not already limited)
+    if len(unique_srcs) > 15 and not show_only_top10:
+        unique_srcs = unique_srcs[:15]
+        flow_counts = flow_counts[flow_counts[src_ip_col].isin(unique_srcs)]
+        
+    if len(unique_ports) > 20:
+        top_ports = flow_counts.groupby(dst_port_col)['count'].sum().nlargest(20).index.tolist()
+        flow_counts = flow_counts[flow_counts[dst_port_col].isin(top_ports)]
+        unique_ports = top_ports
+    
+    # Create position mappings for nodes
+    # Source IPs on left (sorted by count from top to bottom)
+    src_positions = {ip: (0, i) for i, ip in enumerate(unique_srcs)}
+    port_positions = {port: (1, i) for i, port in enumerate(unique_ports)}
+    
+    # Define cyberpunk color palette
+    cyberpunk_colors = [
+        '#00f2ff',  # Cyan
+        '#ff5900',  # Orange
+        '#00ff9d',  # Neon green
+        '#ff3864',  # Hot pink
+        '#a742f5',  # Purple
+        '#ffb000',  # Yellow
+        '#36a2eb',  # Blue
+        '#ff6384',  # Salmon
+        '#29c7ac',  # Teal
+        '#ff9e00',  # Amber
+        '#00b8d9',  # Light blue
+        '#ff5bff',  # Magenta
+        '#7dff00',  # Lime
+        '#8257e5',  # Indigo
+        '#ffc107',  # Gold
+        '#00d4b1',  # Turquoise
+        '#e052a0',  # Pink
+        '#00d0ff',  # Sky blue
+        '#ff4081',  # Rose
+        '#9c27b0'   # Violet
+    ]
+    
+    # Create color mapping for ports
+    color_map = {port: cyberpunk_colors[i % len(cyberpunk_colors)] for i, port in enumerate(unique_ports)}
+    
+    # Create the figure
+    fig = go.Figure()
+    
+    # Add invisible scatter traces for source IPs (left side)
+    fig.add_trace(go.Scatter(
+        x=[0] * len(src_positions),
+        y=list(range(len(src_positions))),
+        mode='markers',
+        marker=dict(
+            color='rgba(0, 242, 255, 0.9)',
+            size=12,
+            line=dict(color='rgba(0, 242, 255, 0.5)', width=1),
+        ),
+        text=list(src_positions.keys()),
+        hoverinfo='text',
+        name='Source IPs'
+    ))
+    
+    # Add invisible scatter traces for destination ports (right side)
+    for i, port in enumerate(unique_ports):
+        # Get color for this port
+        color = color_map[port]
+        
+        fig.add_trace(go.Scatter(
+            x=[1],
+            y=[i],
+            mode='markers',
+            marker=dict(
+                color=color,
+                size=12,
+                line=dict(color='rgba(255, 255, 255, 0.5)', width=1),
+                symbol='square',
+            ),
+            text=[f"Port: {port}"],
+            hoverinfo='text',
+            name=f'Port {port}'
+        ))
+    
+    # Add sankey-like flow lines for each connection
+    for _, row in flow_counts.iterrows():
+        src_ip = row[src_ip_col]
+        dst_port = row[dst_port_col]
+        count = row['count']
+        
+        # Skip if source IP is not in our position mapping (might have been filtered)
+        if src_ip not in src_positions:
+            continue
+        
+        # Get positions
+        src_pos = src_positions[src_ip]
+        dst_pos = port_positions[dst_port]
+        
+        # Calculate line width based on count (minimum 1, maximum 10)
+        max_count = flow_counts['count'].max()
+        line_width = 1 + 9 * (count / max_count) if max_count > 0 else 1
+        
+        # Get color for this port
+        line_color = color_map[dst_port]
+        
+        # Add line connecting source IP to destination port
+        fig.add_trace(go.Scatter(
+            x=[src_pos[0], dst_pos[0]],
+            y=[src_pos[1], dst_pos[1]],
+            mode='lines',
+            line=dict(
+                width=line_width,
+                color=f'rgba{tuple(int(line_color.lstrip("#")[i:i+2], 16) for i in (0, 2, 4)) + (0.6,)}'
+            ),
+            text=f"{src_ip} → Port {dst_port}<br>Count: {count}",
+            hoverinfo='text',
+            showlegend=False
+        ))
+    
+    # Add source IP labels on left side with count info
+    for ip, (x, y) in src_positions.items():
+        # Get total count for this IP
+        total_count = src_ip_totals[src_ip_totals[src_ip_col] == ip]['count'].values[0]
+        
+        fig.add_annotation(
+            x=x - 0.05,
+            y=y,
+            text=f"{ip} ({total_count})",  # Add count to label
+            showarrow=False,
+            xanchor='right',
+            font=dict(color='#00f2ff', size=10),
+        )
+    
+    # Add port labels on right side
+    for port, (x, y) in port_positions.items():
+        # Get total count for this port
+        port_total = flow_counts[flow_counts[dst_port_col] == port]['count'].sum()
+        
+        fig.add_annotation(
+            x=x + 0.05,
+            y=y,
+            text=f"Port {port} ({port_total})",  # Add count to label
+            showarrow=False,
+            xanchor='left',
+            font=dict(color=color_map[port], size=10),
+        )
+    
+    # Update layout with cyberpunk styling
+    fig.update_layout(
+        title=dict(
+            text=title,
+            font=dict(size=16, color='#00f2ff', family='Orbitron'),
+            x=0.5,
+        ),
+        template="plotly_dark",
+        plot_bgcolor='rgba(23, 28, 38, 0.8)',
+        paper_bgcolor='rgba(23, 28, 38, 0.8)', 
+        margin=dict(l=50, r=50, t=50, b=20),
+        height=max(400, len(unique_srcs) * 25),  # Adjust height based on number of points
+        xaxis=dict(
+            showgrid=False,
+            zeroline=False,
+            showticklabels=False,
+            range=[-0.1, 1.1],  # Add padding
+        ),
+        yaxis=dict(
+            showgrid=False,
+            zeroline=False,
+            showticklabels=False,
+            range=[-1, max(len(unique_srcs), len(unique_ports))],  # Add padding
+        ),
+        showlegend=False,
+        hovermode='closest',
+    )
+    
+    # Add glowing effect with shapes
+    fig.update_layout(
+        shapes=[
+            # Bottom border with gradient
+            dict(
+                type="rect",
+                xref="paper", yref="paper",
+                x0=0, y0=0, x1=1, y1=0.02,
+                line_width=0,
+                fillcolor="rgba(0, 242, 255, 0.3)",
+                layer="below"
+            ),
+            # Top border with gradient
+            dict(
+                type="rect",
+                xref="paper", yref="paper",
+                x0=0, y0=0.98, x1=1, y1=1,
+                line_width=0,
+                fillcolor="rgba(255, 89, 0, 0.3)",
+                layer="below"
+            )
+        ]
+    )
+    
+    # Add a grid effect in the background
+    fig.add_shape(
+        type="rect",
+        xref="paper", yref="paper",
+        x0=0, y0=0, x1=1, y1=1,
+        line=dict(color="rgba(0,0,0,0)"),
+        layer="below",
+        fillcolor="rgba(0,0,0,0)",
+        opacity=0.1,
+    )
+    
+    # Add header labels
+    fig.add_annotation(
+        x=0,
+        y=-0.5,
+        text="SOURCE IPs (sorted by count)",
+        showarrow=False,
+        xanchor='center',
+        font=dict(color='#00f2ff', size=12),
+        xref='paper',
+        yref='paper'
+    )
+    
+    fig.add_annotation(
+        x=1,
+        y=-0.5,
+        text="DESTINATION PORTS",
+        showarrow=False,
+        xanchor='center',
+        font=dict(color='#ff5900', size=12),
+        xref='paper',
+        yref='paper'
+    )
+    
+    return fig
+
 
 def parse_timestamp(df, timestamp_col):
     """Parse timestamp column handling multiple formats including Elasticsearch formats"""
@@ -579,15 +1337,185 @@ def parse_timestamp(df, timestamp_col):
     Please check the format or select another column.
     """)
     return df
-
+# Ajoutez cette fonction pour créer un effet de glitch sur les métriques et graphiques
+def apply_border_glitch_effect():
+    st.markdown("""
+    <style>
+        /* Effet de glitch pour les contours */
+        .grafana-panel, .metric-card-container, div.stPlotlyChart, div.element-container div div[data-testid="stMetricValue"] > div {
+            position: relative;
+            z-index: 1;
+            overflow: hidden;
+        }
+        
+        .grafana-panel::after, .metric-card-container::after, div.stPlotlyChart::after, div.element-container div div[data-testid="stMetricValue"] > div::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 1px solid rgba(0, 242, 255, 0.3);
+            pointer-events: none;
+            z-index: -1;
+            animation: glitchBorder 6s infinite;
+        }
+        
+        @keyframes glitchBorder {
+            0% {
+                clip-path: inset(0 0 0 0);
+                border-color: rgba(0, 242, 255, 0.3);
+            }
+            3% {
+                clip-path: inset(0 3px 0 0);
+                border-color: rgba(255, 89, 0, 0.5);
+            }
+            6% {
+                clip-path: inset(0 0 3px 0);
+                border-color: rgba(0, 242, 255, 0.3);
+            }
+            9% {
+                clip-path: inset(0 0 0 3px);
+                border-color: rgba(255, 89, 0, 0.5);
+            }
+            12% {
+                clip-path: inset(3px 0 0 0);
+                border-color: rgba(0, 242, 255, 0.3);
+            }
+            15% {
+                clip-path: inset(0 0 0 0);
+                border-color: rgba(255, 89, 0, 0.5);
+            }
+            48% {
+                clip-path: inset(0 0 0 0);
+                border-color: rgba(0, 242, 255, 0.3);
+            }
+            50% {
+                clip-path: inset(0 3px 0 0);
+                border-color: rgba(255, 89, 0, 0.5);
+            }
+            52% {
+                clip-path: inset(0 0 3px 0);
+                border-color: rgba(0, 242, 255, 0.3);
+            }
+            54% {
+                clip-path: inset(0 0 0 3px);
+                border-color: rgba(255, 89, 0, 0.5);
+            }
+            56% {
+                clip-path: inset(3px 0 0 0);
+                border-color: rgba(0, 242, 255, 0.3);
+            }
+            58% {
+                clip-path: inset(0 0 0 0);
+                border-color: rgba(255, 89, 0, 0.5);
+            }
+            82% {
+                clip-path: inset(0 0 0 0);
+                border-color: rgba(0, 242, 255, 0.3);
+            }
+            84% {
+                clip-path: inset(0 0 3px 0);
+                border-color: rgba(255, 89, 0, 0.5);
+            }
+            86% {
+                clip-path: inset(0 3px 0 0);
+                border-color: rgba(0, 242, 255, 0.3);
+            }
+            88% {
+                clip-path: inset(0 0 0 0);
+                border-color: rgba(255, 89, 0, 0.5);
+            }
+            100% {
+                clip-path: inset(0 0 0 0);
+                border-color: rgba(0, 242, 255, 0.3);
+            }
+        }
+        
+        /* Harmonisation des couleurs des métriques */
+        .metric-card-container {
+            background-color: #181b24;
+            border-radius: 3px;
+            border: 1px solid #00f2ff;
+            box-shadow: 0 0 8px rgba(0, 242, 255, 0.3);
+            margin-bottom: 10px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 def main():
     apply_custom_css()
+    apply_border_glitch_effect() # Apply glitch effect to metrics and plots
     Navbar()
     
-    # Cyberpunk-style header with Grafana look
-    st.markdown("<h1 style='text-align: center; font-family: \"Orbitron\", sans-serif;'>CYBER METRICS</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #00f2ff; margin-bottom: 30px;'>Advanced Data Analysis Interface</p>", unsafe_allow_html=True)
-    
+    # Cyberpunk-style header with enhanced styling
+    st.markdown("""
+    <div style='text-align: center; margin-bottom: 30px;'>
+        <h1 style='font-family: \"Orbitron\", sans-serif; font-size: 2.5rem;'>
+            CYBER<span style='color: #ff5900;'>METRICS</span>
+        </h1>
+        <div style='display: flex; justify-content: center; gap: 10px; margin-top: -10px;'>
+            <div style='height: 2px; width: 100px; background: linear-gradient(90deg, rgba(0,242,255,0), #00f2ff, rgba(0,242,255,0));'></div>
+            <div style='height: 2px; width: 100px; background: linear-gradient(90deg, rgba(255,89,0,0), #ff5900, rgba(255,89,0,0));'></div>
+        </div>
+        <p style='color: #00f2ff; font-family: monospace; letter-spacing: 2px; margin-top: 5px;'>
+            ADVANCED <span style='color: #ff5900;'>DATA</span> ANALYSIS INTERFACE
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("""
+    <style>
+        /* Glitch overlay effect */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.15),
+                rgba(0, 0, 0, 0.15) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.3;
+        }
+        
+        /* Random glitch animation */
+        @keyframes glitch {
+            0% { opacity: 1; }
+            7% { opacity: 0.75; }
+            10% { opacity: 1; }
+            27% { opacity: 1; }
+            30% { opacity: 0.75; }
+            35% { opacity: 1; }
+            52% { opacity: 1; }
+            55% { opacity: 0.75; }
+            60% { opacity: 1; }
+            100% { opacity: 1; }
+        }
+        
+        .stApp::after {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                90deg,
+                rgba(255, 89, 0, 0.03),
+                rgba(0, 242, 255, 0.03)
+            );
+            pointer-events: none;
+            animation: glitch 30s infinite;
+            z-index: 9998;
+        }
+    </style>
+    """, unsafe_allow_html=True)
     # Create tabs for different sections (like Grafana)
     tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🔍 Exploration", "⚙️ Settings"])
     
@@ -613,9 +1541,17 @@ def main():
                     df = load_data(uploaded_file)
                     
                     if df is not None:
-                        # Store the dataframe in the session state
+                        # Store the original dataframe in the session state when first uploading
                         if "original_df" not in st.session_state:
                             st.session_state.original_df = df
+                            
+                        # Initialize filtered_df in session state if not present
+                        if "filtered_df" not in st.session_state:
+                            st.session_state.filtered_df = df
+                            
+                        # Initialize time filter applied flag
+                        if "time_filter_applied" not in st.session_state:
+                            st.session_state.time_filter_applied = False
                         
                         # Detect timestamp columns
                         timestamp_cols = detect_timestamp_cols(df)
@@ -625,27 +1561,53 @@ def main():
                             st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
                             
                             # Add timestamp column selector
+                            if "timestamp_col" not in st.session_state and timestamp_cols:
+                                st.session_state.timestamp_col = timestamp_cols[0]
+                                
                             timestamp_col = st.selectbox(
                                 "Select timestamp column",
                                 timestamp_cols,
-                                key="timestamp_col"
+                                index=timestamp_cols.index(st.session_state.timestamp_col) if st.session_state.timestamp_col in timestamp_cols else 0,
+                                key="timestamp_col_select",
+                                on_change=lambda: setattr(st.session_state, 'timestamp_col', st.session_state.timestamp_col_select)
                             )
                             
-                            # Add time range selector
-                            start_time, end_time, time_unit, time_value, refresh_pressed = time_selector()
+                            # Define refresh callback function
+                            def refresh_data():
+                                """Function to refresh data based on time filter"""
+                                st.session_state.time_filter_applied = True
+                                
+                                # Get original dataframe and apply time filter
+                                original_df = st.session_state.original_df
+                                filtered_df = filter_df_by_time(original_df, st.session_state.timestamp_col, 
+                                                              st.session_state.start_time, st.session_state.end_time)
+                                
+                                # Store filtered dataframe in session state
+                                st.session_state.filtered_df = filtered_df
                             
-                            # Filter the dataframe based on the selected time range
-                            filtered_df = filter_df_by_time(df, timestamp_col, start_time, end_time)
+                            # Add time range selector with refresh callback
+                            start_time, end_time, time_unit, time_value, refresh_pressed = time_selector(on_refresh_callback=refresh_data)
+                            
+                            # Store time range in session state
+                            st.session_state.start_time = start_time
+                            st.session_state.end_time = end_time
+                            
+                            # Use filtered_df if refresh was pressed or time filter was previously applied
+                            # Otherwise use the original dataframe
+                            if refresh_pressed or st.session_state.time_filter_applied:
+                                display_df = st.session_state.filtered_df
+                            else:
+                                display_df = df
                             
                             # Create time histogram to show data distribution
-                            if len(filtered_df) > 0:
+                            if len(display_df) > 0 and timestamp_col in display_df.columns:
                                 # Convert to datetime if not already
-                                if not pd.api.types.is_datetime64_any_dtype(filtered_df[timestamp_col]):
-                                    filtered_df[timestamp_col] = pd.to_datetime(filtered_df[timestamp_col])
+                                if not pd.api.types.is_datetime64_any_dtype(display_df[timestamp_col]):
+                                    display_df = parse_timestamp(display_df.copy(), timestamp_col)
                                 
                                 # Create time histogram
                                 fig = px.histogram(
-                                    filtered_df, 
+                                    display_df, 
                                     x=timestamp_col,
                                     nbins=50,
                                     color_discrete_sequence=["#00f2ff"]
@@ -676,9 +1638,9 @@ def main():
                                 # Show data metrics for the filtered timeframe
                                 data_metrics_cols = st.columns(4)
                                 with data_metrics_cols[0]:
-                                    create_metric_card("FILTERED ROWS", f"{len(filtered_df):,}")
+                                    create_metric_card("FILTERED ROWS", f"{len(display_df):,}")
                                 with data_metrics_cols[1]:
-                                    percent_kept = round((len(filtered_df) / len(df)) * 100, 1)
+                                    percent_kept = round((len(display_df) / len(df)) * 100, 1)
                                     create_metric_card("% OF TOTAL", f"{percent_kept}%")
                                 with data_metrics_cols[2]:
                                     create_metric_card("START TIME", f"{start_time.strftime('%H:%M:%S')}")
@@ -687,8 +1649,11 @@ def main():
                             
                             st.markdown("</div>", unsafe_allow_html=True)
                             
-                            # Use filtered_df instead of df for all subsequent operations
-                            df = filtered_df
+                            # Use display_df for all subsequent operations
+                            df = display_df
+                        
+                        # Rest of your code continues unchanged, just make sure to use the df variable
+                        # which now contains either filtered_df or the original based on refresh button
                         
                         # File details panel
                         st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
@@ -782,6 +1747,149 @@ def main():
                 except Exception as e:
                     st.error(f"Error loading data: {str(e)}")
 
+        fig = px.histogram(
+        display_df, 
+        x=timestamp_col,
+        nbins=50,
+        color_discrete_sequence=["#ff5900", "#00f2ff"]  # Alternating colors
+    )
+
+        # Apply cyberpunk styling
+        fig = cyberpunk_plot_layout(fig, height=150)
+
+        st.plotly_chart(fig, use_container_width=True)
+        if 'filtered_df' in st.session_state and timestamp_cols:
+            st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
+            st.markdown("<div class='panel-header'>TEMPORAL EVENT DISTRIBUTION</div>", unsafe_allow_html=True)
+            
+            # Sélection des colonnes
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                selected_time_col = st.selectbox(
+                    "Time Axis",
+                    timestamp_cols,
+                    key="time_axis_col"
+                )
+            
+            with col2:
+                # Identifiez les colonnes qui pourraient contenir des catégories (texte)
+                category_cols = [col for col in df.columns if col != selected_time_col and 
+                                (df[col].dtype == 'object' or 
+                                df[col].dtype == 'category' or 
+                                df[col].nunique() <= 20)]
+                
+                if not category_cols:
+                    # Si pas de colonnes catégorielles, utilisez une sélection numérique
+                    category_cols = [col for col in df.columns if col != selected_time_col and
+                                    df[col].dtype in ['int64', 'float64'] and
+                                    df[col].nunique() <= 20]
+                
+                if category_cols:
+                    selected_group_col = st.selectbox(
+                        "Group By",
+                        category_cols,
+                        key="group_by_col"
+                    )
+                    
+                    # Créer et afficher le graphique de zone empilée
+                    stacked_fig = create_stacked_area_chart(df, selected_time_col, selected_group_col)
+                    
+                    if stacked_fig:
+                        st.plotly_chart(stacked_fig, use_container_width=True)
+                    else:
+                        st.warning("Could not create stacked area chart with the selected columns")
+                else:
+                    st.warning("No suitable columns found for grouping. Please select a dataset with categorical columns.")
+            
+            st.markdown("</div>", unsafe_allow_html=True)
+                # IP port flow visualization
+        st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
+        st.markdown("<div class='panel-header'>IP-PORT FLOW ANALYSIS</div>", unsafe_allow_html=True)
+
+        # Check if we have IP and port columns
+        ip_cols = [col for col in df.columns if 'ip' in col.lower()]
+        port_cols = [col for col in df.columns if 'port' in col.lower()]
+
+        if ip_cols and port_cols:
+            # Let user select columns
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                src_ip_col = st.selectbox(
+                    "Source IP",
+                    [col for col in ip_cols if 'src' in col.lower() or 'source' in col.lower()],
+                    key="src_ip_col_flow"
+                )
+            
+            with col2:
+                dst_ip_col = st.selectbox(
+                    "Destination IP",
+                    [col for col in ip_cols if 'dst' in col.lower() or 'dest' in col.lower()],
+                    key="dst_ip_col_flow"
+                )
+            
+            col3, col4 = st.columns(2)
+            with col3:
+                dst_port_col = st.selectbox(
+                    "Destination Port",
+                    port_cols,
+                    key="dst_port_col_flow"
+                )
+            
+            with col4:
+                # Get top destination IPs by count for selection
+                top_dst_ips = df[dst_ip_col].value_counts().nlargest(10).index.tolist()
+                selected_dst_ip = st.selectbox(
+                    "Filter Destination IP",
+                    ["All"] + top_dst_ips,
+                    key="selected_dst_ip"
+                )
+            
+            # Add options row
+            col_opts1, col_opts2 = st.columns(2)
+            with col_opts1:
+                show_top10_only = st.checkbox("Show only top 10 source IPs by traffic volume", 
+                                            value=False, 
+                                            key="show_top10")
+            
+            # Create visualization
+            if st.button("🔄 Generate Flow Diagram", key="gen_flow_diagram"):
+                with st.spinner("Generating IP-Port flow diagram..."):
+                    filter_ip = None if selected_dst_ip == "All" else selected_dst_ip
+                    flow_fig = create_ip_port_flow_diagram(
+                        df, 
+                        src_ip_col, 
+                        dst_ip_col, 
+                        dst_port_col,
+                        filter_dst_ip=filter_ip,
+                        show_only_top10=show_top10_only
+                    )
+                    
+                    if flow_fig:
+                        st.plotly_chart(flow_fig, use_container_width=True)
+                        
+                        # Add explanatory text with cyberpunk styling
+                        st.markdown("""
+                        <div style='background-color: #181b24; padding: 15px; border-radius: 3px; 
+                            border: 1px solid rgba(255, 89, 0, 0.3); margin-top: 10px;'>
+                            <p style='margin: 0;'>
+                                <span style='color: #ff5900; font-weight: bold;'>NETWORK FLOW ANALYSIS:</span>
+                                This diagram visualizes network traffic patterns from source IPs (left) to destination ports (right).
+                                Line thickness represents connection frequency, and colors indicate different destination ports.
+                                <br><br>
+                                <span style='color: #00f2ff; font-size: 0.9rem;'>
+                                    Hover over connections to see detailed traffic counts. Source IPs are sorted by total connection volume.
+                                </span>
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.error("Could not create flow diagram with selected columns")
+        else:
+            st.info("No IP address or port columns detected in this dataset.")
+
+        st.markdown("</div>", unsafe_allow_html=True)
     with tab2:
         if 'df' in locals():
             st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
