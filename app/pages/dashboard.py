@@ -15,46 +15,10 @@ import shutil
 import datetime
 from datetime import timedelta
 
-# Directory to store GeoIP database
-GEOIP_DIR = os.path.join(os.path.dirname(__file__), '../resources/geoip')
-
-def download_geoip_db():
-    """Download and extract the MaxMind GeoLite2 City database if not present"""
-    try:
-        # Create directory if it doesn't exist
-        if not os.path.exists(GEOIP_DIR):
-            os.makedirs(GEOIP_DIR)
-            
-        db_path = os.path.join(GEOIP_DIR, 'GeoLite2-City.mmdb')
-        
-        # Check if database already exists
-        if not os.path.exists(db_path):
-            st.info("📡 GeoIP database not found. Downloading (this may take a moment)...")
-            
-            # For demonstration, using a placeholder URL
-            # In production you would use your MaxMind license key
-            # This is just a placeholder - you need to provide a valid URL
-            license_key = "YOUR_LICENSE_KEY"  # Replace with your MaxMind license key
-            url = f"https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key={license_key}&suffix=tar.gz"
-            
-            # You should implement proper download logic
-            # This is a simplified placeholder
-            st.warning("⚠️ GeoIP database download requires a MaxMind license key. Please obtain a free key from maxmind.com and update the code.")
-            
-            # Create a placeholder database file so we don't try to download again
-            with open(db_path, 'w') as f:
-                f.write("placeholder")
-                
-            return None
-        
-        return db_path
-            
-    except Exception as e:
-        st.error(f"Error downloading GeoIP database: {str(e)}")
-        return None
-
-def get_ip_location(ip, reader):
-    """Get location info for an IP address"""
+import socket                                                                 
+                                                                                
+def get_ip_location(ip):
+    """Get location info for an IP address using ip-api.com"""
     try:
         # Check if the IP is valid
         ipaddress.ip_address(ip)
@@ -63,24 +27,49 @@ def get_ip_location(ip, reader):
         if ipaddress.ip_address(ip).is_private:
             return None
             
-        # Look up IP
-        if reader:
-            response = reader.city(ip)
-            return {
-                'ip': ip,
-                'city': response.city.name,
-                'country': response.country.name,
-                'latitude': response.location.latitude,
-                'longitude': response.location.longitude
-            }
-    except:
-        # Invalid IP or not found
+        # Try to resolve domain names to IP addresses
+        try:
+            if not ip[0].isdigit():
+                ip = socket.gethostbyname(ip)
+        except:
+            pass
+            
+        # Look up IP using ip-api.com (no API key needed)
+        url = f'http://ip-api.com/json/{ip}'
+        response = requests.get(url, timeout=5)
+        
+        # Check if response is successful
+        if response.status_code != 200:
+            st.warning(f"API error for IP {ip}: Status code {response.status_code}")
+            return None
+            
+        location_info = response.json()
+        
+        # Check if response contains error
+        if location_info.get('status') == 'fail':
+            st.warning(f"API error for IP {ip}: {location_info.get('message', 'Unknown error')}")
+            return None
+        
+        # Return formatted location data
+        return {
+            'ip': ip,
+            'city': location_info.get('city', 'Unknown'),
+            'country': location_info.get('country', 'Unknown'),
+            'latitude': location_info.get('lat', 0),
+            'longitude': location_info.get('lon', 0),
+            'region': location_info.get('regionName', 'Unknown'),
+            'continent': 'Unknown',  # ip-api doesn't provide continent directly
+            'country_code': location_info.get('countryCode', 'Unknown'),
+            'continent_code': 'Unknown',  # ip-api doesn't provide continent code directly
+            'zip': location_info.get('zip', 'Unknown'),
+            'isp': location_info.get('isp', 'Unknown'),
+            'org': location_info.get('org', 'Unknown')
+        }
+    except Exception as e:
+        st.warning(f"Error processing IP {ip}: {str(e)}")
         return None
-    
-    return None
-
 def extract_ips(df):
-    """Extract IP addresses from dataframe and get their locations"""
+    """Extract IP addresses from dataframe and get their locations with improved error handling"""
     ip_src_col = None
     ip_dst_col = None
     
@@ -102,173 +91,382 @@ def extract_ips(df):
         ip_dst_col = ip_columns[1]
         
     if not ip_src_col and not ip_dst_col:
+        st.error("No IP address columns detected")
         return None, None, None
-        
-    # Download GeoIP database
-    db_path = download_geoip_db()
     
-    if db_path and os.path.exists(db_path) and os.path.getsize(db_path) > 100:
-        try:
-            # Initialize GeoIP reader
-            reader = geoip2.database.Reader(db_path)
-            
-            # Process IP source addresses
-            src_locations = []
-            if ip_src_col:
-                unique_ips = df[ip_src_col].astype(str).unique()
-                for ip in unique_ips:
-                    location = get_ip_location(ip, reader)
-                    if location:
-                        src_locations.append(location)
-            
-            # Process IP destination addresses
-            dst_locations = []
-            if ip_dst_col:
-                unique_ips = df[ip_dst_col].astype(str).unique()
-                for ip in unique_ips:
-                    location = get_ip_location(ip, reader)
-                    if location:
-                        dst_locations.append(location)
-            
-            # Generate flows between source and destination
-            flows = []
-            if ip_src_col and ip_dst_col:
-                # Group by src-dst pair and count occurrences
-                flow_counts = df.groupby([ip_src_col, ip_dst_col]).size().reset_index()
-                flow_counts.columns = [ip_src_col, ip_dst_col, 'count']
+    # Additional logging for debugging
+    st.info(f"Using {ip_src_col} as source IP and {ip_dst_col if ip_dst_col else 'no destination column'}")
+    
+    # Process IP source addresses
+    src_locations = []
+    if ip_src_col:
+        # Limit the number of IPs to process to avoid API rate limiting
+        unique_ips = df[ip_src_col].astype(str).dropna().unique()
+        unique_ips = [ip for ip in unique_ips[:50] if str(ip).strip() != '' and str(ip).lower() != 'nan']
+        
+        if len(unique_ips) == 0:
+            st.warning(f"No valid source IPs found in column {ip_src_col}")
+        else:
+            # Create a progress bar
+            try:
+                progress_text = f"Processing {len(unique_ips)} source IPs..."
+                progress_bar = st.progress(0, text=progress_text)
                 
-                # Get locations for each flow
-                for _, row in flow_counts.iterrows():
-                    src_ip = row[ip_src_col]
-                    dst_ip = row[ip_dst_col]
-                    count = row['count']
+                for i, ip in enumerate(unique_ips):
+                    try:
+                        location = get_ip_location(ip)
+                        if location:
+                            src_locations.append(location)
+                    except Exception as e:
+                        st.warning(f"Error processing source IP {ip}: {str(e)}")
                     
-                    src_loc = get_ip_location(src_ip, reader)
-                    dst_loc = get_ip_location(dst_ip, reader)
+                    # Update progress
+                    progress_bar.progress((i + 1) / len(unique_ips), 
+                                        text=f"Processing source IPs: {i+1}/{len(unique_ips)}")
                     
-                    if src_loc and dst_loc:
-                        flows.append({
-                            'src_ip': src_ip,
-                            'dst_ip': dst_ip,
-                            'src_lat': src_loc['latitude'],
-                            'src_lon': src_loc['longitude'],
-                            'dst_lat': dst_loc['latitude'],
-                            'dst_lon': dst_loc['longitude'],
-                            'count': count,
-                            'src_country': src_loc['country'],
-                            'dst_country': dst_loc['country']
-                        })
+                # Clear the progress bar when done
+                progress_bar.empty()
+            except Exception as e:
+                st.error(f"Error in progress tracking: {str(e)}")
+    
+    # Process IP destination addresses or add demo destination
+    dst_locations = []
+    if ip_dst_col:
+        # Limit the number of IPs to process to avoid API rate limiting
+        unique_ips = df[ip_dst_col].astype(str).dropna().unique()
+        unique_ips = [ip for ip in unique_ips[:50] if str(ip).strip() != '' and str(ip).lower() != 'nan']
+        
+        if len(unique_ips) == 0:
+            st.warning(f"No valid destination IPs found in column {ip_dst_col}")
+        else:
+            # Create a progress bar
+            try:
+                progress_text = f"Processing {len(unique_ips)} destination IPs..."
+                progress_bar = st.progress(0, text=progress_text)
+                
+                for i, ip in enumerate(unique_ips):
+                    try:
+                        location = get_ip_location(ip)
+                        if location:
+                            dst_locations.append(location)
+                    except Exception as e:
+                        st.warning(f"Error processing destination IP {ip}: {str(e)}")
+                    
+                    # Update progress
+                    progress_bar.progress((i + 1) / len(unique_ips), 
+                                        text=f"Processing destination IPs: {i+1}/{len(unique_ips)}")
+                    
+                # Clear the progress bar when done
+                progress_bar.empty()
+            except Exception as e:
+                st.error(f"Error in progress tracking: {str(e)}")
+    
+    # SOLUTION: Generate demo destination location for Lyon, France if we don't have destinations
+    if not dst_locations or len(dst_locations) == 0:
+        st.info("Adding demo destination location in Lyon, France for visualization")
+        # Add a destination in Lyon, France
+        demo_destination = {
+            'ip': '169.254.1.1',  # Placeholder IP
+            'city': 'Lyon',
+            'country': 'France',
+            'latitude': 45.7589,
+            'longitude': 4.8414,
+            'region': 'Rhône-Alpes',
+            'continent': 'Europe',
+            'country_code': 'FR',
+            'continent_code': 'EU',
+            'zip': '69000',
+            'isp': 'Demo ISP',
+            'org': 'Demo Organization'
+        }
+        dst_locations = [demo_destination]
+    
+    # Generate flows between source and destination
+    flows = []
+    if src_locations and dst_locations:
+        try:
+            # Determine if we should use actual flows from data or just create demo flows
+            if ip_src_col and ip_dst_col:
+                # Créer des dictionnaires pour recherche rapide
+                src_ip_map = {loc['ip']: loc for loc in src_locations}
+                dst_ip_map = {loc['ip']: loc for loc in dst_locations}
+                
+                # Group by src-dst pair and count occurrences
+                try:
+                    flow_counts = df.groupby([ip_src_col, ip_dst_col]).size().reset_index()
+                    flow_counts.columns = [ip_src_col, ip_dst_col, 'count']
+                    
+                    # Limiter à 100 flux maximum pour de meilleures performances
+                    if len(flow_counts) > 100:
+                        flow_counts = flow_counts.nlargest(100, 'count')
+                    
+                    # Get locations for each flow
+                    for _, row in flow_counts.iterrows():
+                        src_ip = str(row[ip_src_col])
+                        dst_ip = str(row[ip_dst_col])
+                        
+                        if src_ip.lower() == 'nan' or dst_ip.lower() == 'nan':
+                            continue
+                        
+                        if src_ip in src_ip_map and dst_ip in dst_ip_map:
+                            src_loc = src_ip_map[src_ip]
+                            dst_loc = dst_ip_map[dst_ip]
+                            
+                            # S'assurer que toutes les données sont valides
+                            if (src_loc.get('latitude') is not None and 
+                                src_loc.get('longitude') is not None and 
+                                dst_loc.get('latitude') is not None and 
+                                dst_loc.get('longitude') is not None):
+                                
+                                flow = {
+                                    'src_ip': src_ip,
+                                    'dst_ip': dst_ip,
+                                    'src_lat': float(src_loc['latitude']),
+                                    'src_lon': float(src_loc['longitude']),
+                                    'dst_lat': float(dst_loc['latitude']),
+                                    'dst_lon': float(dst_loc['longitude']),
+                                    'count': int(row['count']),
+                                    'src_country': src_loc.get('country', 'Unknown'),
+                                    'dst_country': dst_loc.get('country', 'Unknown'),
+                                    'src_city': src_loc.get('city', 'Unknown'),
+                                    'dst_city': dst_loc.get('city', 'Unknown'),
+                                    'src_isp': src_loc.get('isp', 'Unknown'),
+                                    'dst_isp': dst_loc.get('isp', 'Unknown'),
+                                    'src_org': src_loc.get('org', 'Unknown'),
+                                    'dst_org': dst_loc.get('org', 'Unknown'),
+                                }
+                                flows.append(flow)
+                except Exception as e:
+                    st.warning(f"Could not generate flows from data: {str(e)}")
             
-            # Close reader
-            reader.close()
+            # Si nous n'avons pas assez de flux, créer des flux de démonstration
+            # entre toutes nos sources et notre destination Lyon
+            if len(flows) == 0 and len(src_locations) > 0:
+                st.info("Creating demonstration flows to Lyon, France")
+                
+                # Get our Lyon destination
+                lyon_dest = dst_locations[0]
+                
+                # Create a demo flow from each source to Lyon
+                for src_loc in src_locations:
+                    flow = {
+                        'src_ip': src_loc['ip'],
+                        'dst_ip': lyon_dest['ip'],
+                        'src_lat': float(src_loc['latitude']),
+                        'src_lon': float(src_loc['longitude']),
+                        'dst_lat': float(lyon_dest['latitude']),
+                        'dst_lon': float(lyon_dest['longitude']),
+                        'count': 1,  # Example count
+                        'src_country': src_loc.get('country', 'Unknown'),
+                        'dst_country': lyon_dest.get('country', 'France'),
+                        'src_city': src_loc.get('city', 'Unknown'),
+                        'dst_city': lyon_dest.get('city', 'Lyon'),
+                        'src_isp': src_loc.get('isp', 'Unknown'),
+                        'dst_isp': lyon_dest.get('isp', 'Demo ISP'),
+                        'src_org': src_loc.get('org', 'Unknown'),
+                        'dst_org': lyon_dest.get('org', 'Demo Organization'),
+                    }
+                    flows.append(flow)
             
-            return src_locations, dst_locations, flows
+            # Additional logging
+            st.success(f"Generated {len(flows)} attack flow paths")
             
         except Exception as e:
-            st.error(f"Error processing IP addresses: {str(e)}")
-            return None, None, None
+            st.error(f"Error generating flows: {str(e)}")
+            import traceback
+            st.error(traceback.format_exc())
     else:
-        st.warning("GeoIP database not available. IP geolocation functionality disabled.")
-        return None, None, None
-
+        st.warning("Need both source and destination locations to create flow lines")
+    
+    return src_locations, dst_locations, flows
 def create_ip_map(src_locations, dst_locations, flows):
-    """Create an interactive map showing IP locations and flows"""
-    # Create base map
+    """Create an interactive map showing IP locations and flows with optimized performance"""
+    
+    # Create base map with cyberpunk styling but less demanding effects
     fig = go.Figure()
     
-    # Add source markers
+    # Add source markers with simplified styling
     if src_locations:
         src_df = pd.DataFrame(src_locations)
         fig.add_trace(go.Scattergeo(
             lon=src_df['longitude'],
             lat=src_df['latitude'],
-            text=src_df.apply(lambda row: f"Source IP: {row['ip']}<br>Location: {row['city']}, {row['country']}", axis=1),
+            text=src_df.apply(lambda row: (
+                f"Source IP: {row['ip']}<br>" +
+                f"Location: {row['city']}, {row['region']}, {row['country']}<br>" +
+                f"ISP: {row.get('isp', 'Unknown')}<br>" +
+                f"Organization: {row.get('org', 'Unknown')}<br>" +
+                f"Coordinates: {row['latitude']:.4f}, {row['longitude']:.4f}"
+            ), axis=1),
             mode='markers',
             marker=dict(
-                size=8,
-                color='rgba(0, 255, 157, 0.8)',
+                size=10,
+                color='rgba(0, 255, 157, 1.0)',
                 line=dict(width=1, color='rgba(0, 255, 157, 0.5)'),
-                symbol='circle'
+                symbol='circle',
+                opacity=0.9,
             ),
             name='Source IPs',
             hoverinfo='text'
         ))
     
-    # Add destination markers
+    # Add destination markers with simplified styling
     if dst_locations:
         dst_df = pd.DataFrame(dst_locations)
         fig.add_trace(go.Scattergeo(
             lon=dst_df['longitude'],
             lat=dst_df['latitude'],
-            text=dst_df.apply(lambda row: f"Destination IP: {row['ip']}<br>Location: {row['city']}, {row['country']}", axis=1),
+            text=dst_df.apply(lambda row: (
+                f"Destination IP: {row['ip']}<br>" +
+                f"Location: {row['city']}, {row['region']}, {row['country']}<br>" +
+                f"ISP: {row.get('isp', 'Unknown')}<br>" +
+                f"Organization: {row.get('org', 'Unknown')}<br>" +
+                f"Coordinates: {row['latitude']:.4f}, {row['longitude']:.4f}"
+            ), axis=1),
             mode='markers',
             marker=dict(
-                size=8,
-                color='rgba(255, 91, 121, 0.8)',
+                size=10,
+                color='rgba(255, 91, 121, 1.0)',
                 line=dict(width=1, color='rgba(255, 91, 121, 0.5)'),
-                symbol='circle'
+                symbol='diamond',
+                opacity=0.9,
             ),
             name='Destination IPs',
             hoverinfo='text'
         ))
     
-    # Add flows
+    # Draw optimized flow lines without curves or glowing effects
+    # IMPORTANT FIX: Use a different approach for drawing lines to prevent ricochets
     if flows:
-        flows_df = pd.DataFrame(flows)
+        # Limit number of flows to improve performance
+        max_flows = min(50, len(flows))
+        flows_to_display = flows[:max_flows]
         
-        # Normalize flow counts for line width
-        max_count = flows_df['count'].max()
-        min_count = flows_df['count'].min()
-        flows_df['width'] = 1 + 4 * (flows_df['count'] - min_count) / (max_count - min_count) if max_count > min_count else 2
-        
-        # Add each flow as a line
-        for _, flow in flows_df.iterrows():
+        # For each flow, draw a direct line (not curved)
+        for flow in flows_to_display:
+            # Get source and destination coordinates
+            src_lon = flow['src_lon']
+            src_lat = flow['src_lat']
+            dst_lon = flow['dst_lon']
+            dst_lat = flow['dst_lat']
+            
+            # CRITICAL FIX: Prevent ricocheting by handling the 180° meridian crossing
+            lon_diff = abs(src_lon - dst_lon)
+            
+            # If the difference is greater than 180°, we're probably crossing the meridian
+            if lon_diff > 180:
+                # Skip this flow as it would cause a ricochet effect
+                continue
+            
+            # Add a simplified line trace (direct path without curves)
             fig.add_trace(go.Scattergeo(
-                lon=[flow['src_lon'], flow['dst_lon']],
-                lat=[flow['src_lat'], flow['dst_lat']],
+                lon=[src_lon, dst_lon],
+                lat=[src_lat, dst_lat],
                 mode='lines',
                 line=dict(
-                    width=flow['width'],
-                    color='rgba(0, 242, 255, 0.6)'
+                    width=1.5,  # Reduce line width for better performance
+                    color='rgba(0, 242, 255, 0.8)',
                 ),
-                text=f"Flow: {flow['src_ip']} → {flow['dst_ip']}<br>Count: {flow['count']}<br>From: {flow['src_country']} To: {flow['dst_country']}",
+                opacity=0.8,
+                text=(
+                    f"Flow: {flow.get('src_ip', 'Unknown')} → {flow.get('dst_ip', 'Unknown')}<br>" +
+                    f"Count: {flow.get('count', 'N/A')}<br>" +
+                    f"From: {flow.get('src_city', 'Unknown')}, {flow.get('src_country', 'Unknown')}<br>" +
+                    f"To: {flow.get('dst_city', 'Unknown')}, {flow.get('dst_country', 'Unknown')}"
+                ),
                 hoverinfo='text',
-                name=''
+                showlegend=False
             ))
     
-    # Update layout
+    # Update layout with simplified styling
     fig.update_layout(
         template="plotly_dark",
         geo=dict(
             showland=True,
-            landcolor='rgb(23, 28, 38)',
-            countrycolor='rgba(30, 40, 50, 0.8)',
+            landcolor='rgb(10, 15, 25)',
+            countrycolor='rgba(30, 50, 70, 1.0)',
             coastlinecolor='rgba(0, 242, 255, 0.5)',
             countrywidth=0.5,
             coastlinewidth=0.5,
             showocean=True,
-            oceancolor='rgb(11, 15, 25)',
+            oceancolor='rgb(5, 10, 20)',
             showlakes=False,
             showrivers=False,
             showframe=False,
             showcountries=True,
-            projection_type='natural earth',
-            bgcolor='rgba(0,0,0,0)'
+            # IMPORTANT: Use orthographic projection to avoid distortion at high latitudes
+            projection_type='orthographic',  # Changed from natural earth for better line paths
+            projection=dict(
+                rotation=dict(lon=-10, lat=25, roll=0)  # Center view for better visibility
+            ),
+            bgcolor='rgba(0,0,0,0)',
+            resolution=50,
         ),
-        paper_bgcolor='rgba(23, 28, 38, 0.8)',
-        plot_bgcolor='rgba(23, 28, 38, 0.8)',
+        paper_bgcolor='rgba(10, 15, 25, 0.95)',
+        plot_bgcolor='rgba(10, 15, 25, 0.95)',
         margin=dict(l=0, r=0, t=10, b=10),
-        height=500,
+        height=550,  # Slightly reduced height for better performance
         legend=dict(
-            x=0,
-            y=0,
-            bgcolor='rgba(23, 28, 38, 0.7)',
-            bordercolor='rgba(0, 255, 198, 0.2)'
+            x=0.01,
+            y=0.99,
+            bgcolor='rgba(10, 15, 25, 0.7)',
+            bordercolor=None,  # Remove border
+            font=dict(size=10, color="#00f2ff")
+        ),
+        # Add simple buttons to change projection for better exploration
+        updatemenus=[
+            dict(
+                type="buttons",
+                direction="right",
+                buttons=[
+                    dict(
+                        args=[{"geo.projection.type": "orthographic", 
+                               "geo.projection.rotation": {"lon": -10, "lat": 25, "roll": 0}}],
+                        label="Globe",
+                        method="relayout"
+                    ),
+                    dict(
+                        args=[{"geo.projection.type": "natural earth", 
+                               "geo.center": {"lon": 0, "lat": 0}}],
+                        label="Flat",
+                        method="relayout"
+                    ),
+                    dict(
+                        args=[{"geo.projection.type": "mercator", 
+                               "geo.center": {"lon": 0, "lat": 0}}],
+                        label="Mercator",
+                        method="relayout"
+                    )
+                ],
+                pad={"r": 10, "t": 10},
+                showactive=True,
+                x=0.1,
+                y=1.1,
+                xanchor="right",
+                yanchor="top",
+                bgcolor="rgba(10, 15, 25, 0.7)",
+            )
+        ]
+    )
+    
+    # IMPORTANT: Remove the border shapes that cause rendering issues
+    # Instead, add a simple title with cyberpunk styling
+    fig.update_layout(
+        title=dict(
+            text="CYBERPUNK ATTACK FLOW MAP",
+            font=dict(
+                family="Orbitron, monospace",
+                size=16,
+                color="#00f2ff"
+            ),
+            x=0.5,
+            y=0.02,
+            xanchor='center',
+            yanchor='bottom'
         )
     )
     
     return fig
-
 st.set_page_config(page_title="Dashboard", page_icon="📊", layout="wide")
 
 # Custom CSS for Grafana-like cyberpunk styling
@@ -950,32 +1148,47 @@ def time_selector(on_refresh_callback=None):
         """, unsafe_allow_html=True)
     
     return start_time, now, time_unit, time_value, refresh_button
-
 def filter_df_by_time(df, timestamp_col, start_time, end_time):
-    """Filter dataframe based on timestamp column and time range"""
-    if timestamp_col is None:
-        st.warning("No timestamp column detected in the dataset. Time filtering is disabled.")
+    """Filter dataframe based on timestamp column and time range with improved parsing"""
+    if timestamp_col is None or timestamp_col not in df.columns:
+        st.warning("No valid timestamp column selected. Time filtering is disabled.")
         return df
     
-    # Ensure timestamp column is in datetime format using our robust parser
-    if not pd.api.types.is_datetime64_any_dtype(df[timestamp_col]):
-        df = parse_timestamp(df, timestamp_col)
-    
-    # Now filter the dataframe
     try:
-        return df[(df[timestamp_col] >= start_time) & (df[timestamp_col] <= end_time)]
+        # Use our improved parser to handle the timestamp column
+        parsed_df = parse_timestamp(df.copy(), timestamp_col)
+        
+        # Check if parsing was successful
+        if not pd.api.types.is_datetime64_any_dtype(parsed_df[timestamp_col]):
+            st.warning(f"Could not convert '{timestamp_col}' to a valid datetime format. Using original data.")
+            return df
+        
+        # Apply the time filter
+        filtered_df = parsed_df[(parsed_df[timestamp_col] >= start_time) & 
+                               (parsed_df[timestamp_col] <= end_time)]
+        
+        # Log information about how many rows were filtered
+        original_rows = len(df)
+        filtered_rows = len(filtered_df)
+        st.info(f"Time filter applied: {filtered_rows} of {original_rows} rows ({filtered_rows/original_rows*100:.1f}%) match the selected time range.")
+        
+        return filtered_df
+        
     except Exception as e:
-        st.error(f"Error filtering by time: {str(e)}")
+        st.error(f"Error during time filtering: {str(e)}")
+        # Fallback to unfiltered data
         return df
 # Function to detect timestamp columns in a dataframe
 def detect_timestamp_cols(df):
-    """Detect potential timestamp columns in a dataframe including Elasticsearch formats"""
+    """Detect potential timestamp columns with enhanced pattern recognition"""
     timestamp_cols = []
     
     for col in df.columns:
         # Check if column name suggests time
         col_lower = col.lower()
-        if any(time_word in col_lower for time_word in ['time', 'date', 'timestamp', '@timestamp', 'datetime', 'created', 'modified']):
+        if any(time_word in col_lower for time_word in 
+               ['time', 'date', 'timestamp', '@timestamp', 'datetime', 'created', 'modified', 
+                'log_time', 'event_time', 'start', 'end', 'occurred']):
             timestamp_cols.append(col)
             continue
         
@@ -984,26 +1197,39 @@ def detect_timestamp_cols(df):
             timestamp_cols.append(col)
             continue
             
-        # Check if column contains datetime strings
+        # Sample the column to check for datetime patterns (use more samples)
         if df[col].dtype == 'object':
-            # Sample the column to check for datetime patterns
-            sample = df[col].dropna().head(10).astype(str)
+            sample = df[col].dropna().head(20).astype(str)
             
-            # Check for common date/time patterns
-            if sample.str.contains(r'\d{4}-\d{2}-\d{2}').any() or \
-               sample.str.contains(r'\d{1,2}/\d{1,2}/\d{2,4}').any() or \
-               sample.str.contains(r'[A-Za-z]{3}\s\d{1,2},\s\d{4}').any() or \
-               sample.str.contains(r'\d{1,2}:\d{2}:\d{2}').any() or \
-               sample.str.contains('@').any():  # Elasticsearch format often contains @
+            # Enhanced pattern detection for timestamps
+            date_patterns = [
+                r'\d{4}-\d{2}-\d{2}',                      # ISO date
+                r'\d{1,2}/\d{1,2}/\d{2,4}',                # US/EU date
+                r'[A-Za-z]{3}\s\d{1,2},\s\d{4}',           # Month name date
+                r'\d{1,2}:\d{2}:\d{2}',                    # Time
+                r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}',          # ISO datetime
+                r'@',                                       # Elasticsearch @ symbol
+                r'\d{2}-[A-Za-z]{3}-\d{4}',                # DD-MMM-YYYY
+                r'\d{14}',                                  # YYYYMMDDHHMMSS
+                r'\d{1,2}\s+[A-Za-z]{3}\s+\d{4}'           # Day Month Year
+            ]
+            
+            if any(sample.str.contains(pattern, regex=True).any() for pattern in date_patterns):
                 timestamp_cols.append(col)
                 continue
-                
-            # Try converting to see if pandas can parse it
-            try:
-                pd.to_datetime(sample)
-                timestamp_cols.append(col)
-            except:
-                pass
+    
+    # If we found too many potential timestamp columns, filter to the most likely ones
+    if len(timestamp_cols) > 5:
+        # Try to determine the most likely timestamp columns
+        likely_cols = []
+        for col in timestamp_cols:
+            col_lower = col.lower()
+            if 'timestamp' in col_lower or 'date' in col_lower or 'time' in col_lower:
+                likely_cols.append(col)
+        
+        # If we found some likely columns, use those instead
+        if likely_cols:
+            timestamp_cols = likely_cols
     
     return timestamp_cols
 
@@ -1029,10 +1255,7 @@ def create_ip_port_flow_diagram(df, src_ip_col, dst_ip_col, dst_port_col, filter
         else:
             flow_df = df.copy()
             title = "Network Flows"
-            
-    # If still too many rows, sample
-    if len(flow_df) > 3000: # Increased maximum size to 3x more
-        flow_df = flow_df.sample(3000)
+
     
     # Prepare data - group by source IP and destination port
     flow_counts = flow_df.groupby([src_ip_col, dst_port_col]).size().reset_index()
@@ -1044,6 +1267,7 @@ def create_ip_port_flow_diagram(df, src_ip_col, dst_ip_col, dst_port_col, filter
     # Calculate total count per source IP for sorting
     src_ip_totals = flow_counts.groupby(src_ip_col)['count'].sum().reset_index()
     src_ip_totals = src_ip_totals.sort_values('count', ascending=False)
+    print(src_ip_totals)
     
     # Filter to top 10 source IPs by count if requested
     if show_only_top10:
@@ -1285,57 +1509,118 @@ def create_ip_port_flow_diagram(df, src_ip_col, dst_ip_col, dst_port_col, filter
     
     return fig
 
-
 def parse_timestamp(df, timestamp_col):
-    """Parse timestamp column handling multiple formats including Elasticsearch formats"""
-    try:
-        # First try standard pandas datetime conversion
-        df[timestamp_col] = pd.to_datetime(df[timestamp_col])
-        return df
-    except Exception:
-        pass
+    """Parse timestamp column with improved handling for multiple formats"""
+    # Create a copy to avoid warnings about modifying the original dataframe
+    df_copy = df.copy()
     
-    try:
-        # Try Elasticsearch/Kibana format: "Mar 10, 2025 @ 12:42:28.656"
-        pattern = r'([A-Za-z]{3}\s\d{1,2},\s\d{4}\s@\s\d{1,2}:\d{2}:\d{2}\.\d{3})'
-        
-        # Extract timestamps using regex
-        df['temp_timestamp'] = df[timestamp_col].astype(str).str.extract(pattern)[0]
-        
-        # Apply custom parsing for this format
-        df[timestamp_col] = pd.to_datetime(df['temp_timestamp'], format='%b %d, %Y @ %H:%M:%S.%f')
-        
-        # Drop temporary column
-        df = df.drop('temp_timestamp', axis=1)
-        return df
-    except Exception:
-        pass
+    # First check if column is already datetime
+    if pd.api.types.is_datetime64_any_dtype(df_copy[timestamp_col]):
+        return df_copy
     
-    # Last resort: try common formats one by one
-    formats = [
-        '%Y-%m-%dT%H:%M:%S.%fZ',  # ISO format with milliseconds
-        '%Y-%m-%dT%H:%M:%SZ',     # ISO format without milliseconds
+    # Sample the column to identify the format
+    sample_values = df_copy[timestamp_col].dropna().astype(str).iloc[:10].tolist()
+    
+    # Try to detect Elasticsearch/Kibana format with '@' symbol
+    if any('@' in str(val) for val in sample_values):
+        try:
+            # Special handling for Kibana format: "Mar 10, 2025 @ 12:42:28.656"
+            # First clean up the format to something pandas can understand
+            def clean_kibana_timestamp(ts):
+                try:
+                    if isinstance(ts, str) and '@' in ts:
+                        # Replace @ with space for easier parsing
+                        return ts.replace('@', '')
+                    return ts
+                except:
+                    return ts
+            
+            # Apply cleaning function
+            df_copy[timestamp_col] = df_copy[timestamp_col].apply(clean_kibana_timestamp)
+            
+            # Now try to parse with explicit format
+            try:
+                df_copy[timestamp_col] = pd.to_datetime(df_copy[timestamp_col], format='%b %d, %Y %H:%M:%S.%f')
+                return df_copy
+            except:
+                pass  # Fall through to next method if this fails
+        except Exception as e:
+            st.warning(f"Special Elasticsearch format handling failed: {str(e)}")
+    
+    # Try common formats explicitly to avoid format inference issues
+    formats_to_try = [
+        '%Y-%m-%dT%H:%M:%S.%fZ',  # ISO format with milliseconds and Z
+        '%Y-%m-%dT%H:%M:%SZ',     # ISO format without milliseconds with Z
+        '%Y-%m-%dT%H:%M:%S.%f',   # ISO format with milliseconds
+        '%Y-%m-%dT%H:%M:%S',      # ISO format without milliseconds
         '%Y-%m-%d %H:%M:%S.%f',   # Standard datetime with milliseconds
         '%Y-%m-%d %H:%M:%S',      # Standard datetime
-        '%Y-%m-%d',               # Just date
         '%m/%d/%Y %H:%M:%S',      # US format
         '%d/%m/%Y %H:%M:%S',      # European format
-        '%b %d, %Y @ %H:%M:%S.%f' # Elasticsearch format
+        '%Y-%m-%d',               # Just date
+        '%m/%d/%Y',               # US date only
+        '%d/%m/%Y',               # European date only
+        '%b %d, %Y',              # Month name date
+        '%B %d, %Y',              # Full month name date
+        '%d %b %Y',               # Day first with month name
+        '%Y%m%d',                 # Compact date format
+        '%b %d, %Y %H:%M:%S',     # Month name with time
+        '%b %d, %Y %H:%M:%S.%f'   # Month name with time and milliseconds
     ]
     
-    for fmt in formats:
+    for fmt in formats_to_try:
         try:
-            df[timestamp_col] = pd.to_datetime(df[timestamp_col], format=fmt)
-            return df
+            df_copy[timestamp_col] = pd.to_datetime(df_copy[timestamp_col], format=fmt)
+            return df_copy
         except:
             continue
     
-    # If all attempts fail, raise a more helpful error
+    # If explicit formats fail, try to extract date components with regex
+    date_patterns = [
+        # Extract ISO-like format
+        r'(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})',
+        # Extract Elasticsearch format
+        r'([A-Za-z]{3}\s\d{1,2},\s\d{4}).*?(\d{2}:\d{2}:\d{2})'
+    ]
+    
+    for pattern in date_patterns:
+        try:
+            # Extract date and time components
+            date_match = df_copy[timestamp_col].astype(str).str.extract(pattern)
+            if not date_match.iloc[:, 0].isna().all():
+                # Combine extracted components
+                extracted_datetime = date_match.iloc[:, 0] + ' ' + date_match.iloc[:, 1]
+                df_copy[timestamp_col] = pd.to_datetime(extracted_datetime, errors='coerce')
+                if not df_copy[timestamp_col].isna().all():
+                    return df_copy
+        except:
+            continue
+    
+    # Last resort - try pandas default parsing with explicit error handling
+    try:
+        # Use errors='coerce' to convert unparseable values to NaT
+        df_copy[timestamp_col] = pd.to_datetime(df_copy[timestamp_col], errors='coerce')
+        
+        # Check if conversion worked for at least some values
+        if not df_copy[timestamp_col].isna().all():
+            # Display a warning about unparseable dates
+            na_count = df_copy[timestamp_col].isna().sum()
+            if na_count > 0:
+                percentage = (na_count / len(df_copy)) * 100
+                st.warning(f"⚠️ {na_count} values ({percentage:.1f}%) in column '{timestamp_col}' couldn't be parsed as dates and were replaced with NaT.")
+            return df_copy
+    except Exception as e:
+        pass
+    
+    # If all else fails, show helpful error message with example values
     st.error(f"""
-    Could not parse timestamp column '{timestamp_col}'. 
-    Example value: '{df[timestamp_col].iloc[0]}' 
-    Please check the format or select another column.
+    Could not parse date format in '{timestamp_col}'. 
+    Example values: {', '.join(str(val) for val in sample_values[:3])}
+    
+    Please select a different timestamp column or ensure the data is in a standard date format.
     """)
+    
+    # Return original dataframe but with warning
     return df
 # Ajoutez cette fonction pour créer un effet de glitch sur les métriques et graphiques
 def apply_border_glitch_effect():
@@ -1695,51 +1980,153 @@ def main():
                         # IP geolocation panel
                         st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
                         st.markdown("<div class='panel-header'>IP GEOLOCATION</div>", unsafe_allow_html=True)
-                        
+
                         # Check if the dataframe might contain IP addresses
                         ip_cols = []
                         for col in df.columns:
                             col_lower = col.lower()
                             if 'ip' in col_lower:
                                 ip_cols.append(col)
-                        
+
                         if ip_cols:
                             st.info("🌐 IP address columns detected: " + ", ".join(ip_cols))
                             
-                            geoip_process = st.button("🔍 ANALYZE IP LOCATIONS", key="process_ips")
-                            
-                            if geoip_process:
-                                with st.spinner("Extracting IP addresses and looking up locations..."):
-                                    src_locations, dst_locations, flows = extract_ips(df)
+                            geoip_process_col1, geoip_process_col2 = st.columns(2)
+                            with geoip_process_col1:
+                                geoip_process = st.button("🔍 ANALYZE IP LOCATIONS", key="process_ips")
+        
+                        # Remplacez la section qui affiche la carte dans la fonction main()
+
+                        if geoip_process:
+                            with st.spinner("Extracting IP addresses and looking up locations..."):
+                                # Add a cool cyberpunk banner for the processing
+                                st.markdown("""
+                                <div style='background-color: #0a0f19; padding: 15px; border-radius: 3px; 
+                                    border: 1px solid #00f2ff; box-shadow: 0 0 20px rgba(0, 242, 255, 0.5);'>
+                                    <div style='display: flex; align-items: center; justify-content: center;'>
+                                        <div style='font-family: "Orbitron", sans-serif; font-size: 20px; color: #00f2ff; 
+                                            text-shadow: 0 0 10px rgba(0, 242, 255, 0.7); letter-spacing: 3px;'>
+                                            CYBER THREAT INTELLIGENCE
+                                        </div>
+                                    </div>
+                                    <div style='height: 2px; background: linear-gradient(90deg, rgba(0,0,0,0), #00f2ff, rgba(0,0,0,0)); 
+                                        margin: 10px 0; animation: pulse 2s infinite;'></div>
+                                    <style>
+                                        @keyframes pulse {
+                                            0% { opacity: 0.4; }
+                                            50% { opacity: 1; }
+                                            100% { opacity: 0.4; }
+                                        }
+                                    </style>
+                                </div>
+                                """, unsafe_allow_html=True)
+                                
+                                # Extract IP data
+                                src_locations, dst_locations, flows = extract_ips(df)
+                                
+                                if src_locations or dst_locations:
+                                    st.success(f"✅ Found {len(src_locations) if src_locations else 0} source IPs and {len(dst_locations) if dst_locations else 0} destination IPs with geolocation data.")
                                     
-                                    if src_locations or dst_locations:
-                                        st.success(f"✅ Found {len(src_locations) if src_locations else 0} source IPs and {len(dst_locations) if dst_locations else 0} destination IPs with geolocation data.")
+                                    # Create cyberpunk-styled threat map header
+                                    st.markdown("""
+                                    <div style='margin: 20px 0; text-align: center;'>
+                                        <div style='font-family: "Orbitron", sans-serif; font-size: 24px; font-weight: bold;
+                                            background: linear-gradient(90deg, #00f2ff, #ff5900);
+                                            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+                                            text-shadow: 0 0 5px rgba(0, 242, 255, 0.5); letter-spacing: 2px;'>
+                                            GLOBAL ATTACK VECTOR MAP
+                                        </div>
+                                        <div style='font-family: monospace; color: #00ff9d; margin-top: 5px;'>
+                                            Real-time visualization of network attack flows
+                                        </div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                    
+                                    # Create and display map with performance optimizations
+                                    fig = create_ip_map(src_locations, dst_locations, flows)
+
+                                    # Display chart with specific configuration to optimize performance
+                                    st.plotly_chart(fig, use_container_width=True, config={
+                                        'displayModeBar': True,
+                                        'modeBarButtonsToRemove': [
+                                            'select2d', 'lasso2d', 'hoverClosestGeo', 
+                                            'autoScale2d', 'resetScale2d', 'toggleHover'
+                                        ],
+                                        'displaylogo': False,
+                                        'scrollZoom': True,
+                                        'responsive': True,
+                                        'staticPlot': False,  # Set to True for even better performance but loses interactivity
+                                    })
+
+                                    # Add performance note
+                                    st.markdown("""
+                                    <div style="background-color: #181b24; padding: 10px; border-radius: 3px; margin-top: 5px;">
+                                        <span style="color: #00f2ff; font-size: 0.8rem;">💡 <strong>Performance Tip:</strong> 
+                                        If the map is lagging, try switching between projection types using the buttons above the map.
+                                        The Globe view shows accurate paths while the Flat view may be faster.</span>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                    
+                                    # Show flow statistics with enhanced styling
+                                    if flows:
+                                        st.markdown("""
+                                        <div style='margin-top: 25px; margin-bottom: 15px;'>
+                                            <div style='font-family: "Orbitron", sans-serif; font-size: 20px; color: #00f2ff; 
+                                                text-shadow: 0 0 10px rgba(0, 242, 255, 0.5); letter-spacing: 2px;'>
+                                                TRAFFIC FLOW INTELLIGENCE
+                                            </div>
+                                            <div style='height: 2px; background: linear-gradient(90deg, rgba(0,0,0,0), #00f2ff, rgba(0,0,0,0)); 
+                                                margin: 10px 0;'></div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
                                         
-                                        # Create map
-                                        st.subheader("IP Traffic Flow Map")
-                                        fig = create_ip_map(src_locations, dst_locations, flows)
-                                        st.plotly_chart(fig, use_container_width=True)
+                                        # Create DataFrame from flows
+                                        flow_df = pd.DataFrame(flows)
                                         
-                                        # Show flow statistics
-                                        if flows:
-                                            st.markdown("<div class='panel-header' style='margin-top:15px;'>TRAFFIC FLOW STATISTICS</div>", unsafe_allow_html=True)
-                                            
-                                            # Create DataFrame from flows
-                                            flow_df = pd.DataFrame(flows)
-                                            
-                                            # Group by country pairs
-                                            country_flows = flow_df.groupby(['src_country', 'dst_country'])['count'].sum().reset_index()
-                                            country_flows = country_flows.sort_values('count', ascending=False)
-                                            
-                                            # Show top country flows
-                                            st.markdown("#### Top Country Flows")
+                                        # Group by country pairs
+                                        country_flows = flow_df.groupby(['src_country', 'dst_country'])['count'].sum().reset_index()
+                                        country_flows = country_flows.sort_values('count', ascending=False)
+                                        
+                                        # Group by ISP pairs for broader view
+                                        isp_flows = flow_df.groupby(['src_isp', 'dst_isp'])['count'].sum().reset_index()
+                                        isp_flows = isp_flows.sort_values('count', ascending=False)
+                                        
+                                        # Create metrics with enhanced styling
+                                        metric_cols = st.columns(4)
+                                        with metric_cols[0]:
+                                            create_metric_card("TOTAL FLOWS", f"{len(flows)}")
+                                        with metric_cols[1]:
+                                            create_metric_card("COUNTRIES", f"{country_flows['src_country'].nunique() + country_flows['dst_country'].nunique()}")
+                                        with metric_cols[2]:
+                                            create_metric_card("SOURCE IPs", f"{len(src_locations) if src_locations else 0}")
+                                        with metric_cols[3]:
+                                            create_metric_card("DEST IPs", f"{len(dst_locations) if dst_locations else 0}")
+                                        
+                                        # Show top flows with enhanced styling
+                                        col1, col2 = st.columns(2)
+                                        
+                                        with col1:
+                                            st.markdown("""
+                                            <div style='font-family: "Orbitron", sans-serif; color: #ff5900; 
+                                                text-shadow: 0 0 5px rgba(255, 89, 0, 0.5); margin-bottom: 10px;'>
+                                                TOP COUNTRY ROUTES
+                                            </div>
+                                            """, unsafe_allow_html=True)
                                             st.dataframe(country_flows.head(10), use_container_width=True)
-                                            
-                                    else:
-                                        st.warning("No valid IP addresses with geolocation data found.")
+                                        
+                                        with col2:
+                                            st.markdown("""
+                                            <div style='font-family: "Orbitron", sans-serif; color: #00ff9d; 
+                                                text-shadow: 0 0 5px rgba(0, 255, 157, 0.5); margin-bottom: 10px;'>
+                                                TOP ISP CONNECTIONS
+                                            </div>
+                                            """, unsafe_allow_html=True)
+                                            st.dataframe(isp_flows.head(10), use_container_width=True)
+                                else:
+                                    st.error("No valid IP addresses with geolocation data found. Please check your IP columns.")
                         else:
                             st.info("No IP address columns detected in this dataset.")
-                        
+
                         st.markdown("</div>", unsafe_allow_html=True)
                         
                     else:
