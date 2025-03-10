@@ -1,10 +1,12 @@
 import streamlit as st
-from pages.ressources.components import Navbar
+from pages.ressources.components import Navbar , apply_border_glitch_effect, apply_custom_css
 import pandas as pd
 
 st.set_page_config(page_title="OOPSISE", page_icon="📊", layout="wide")
 
 def main():
+    apply_custom_css()
+    apply_border_glitch_effect()
     Navbar()
     
     # Cyberpunk-style header

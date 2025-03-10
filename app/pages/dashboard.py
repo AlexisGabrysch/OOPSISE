@@ -1,20 +1,14 @@
 import streamlit as st
-from pages.ressources.components import Navbar
+from pages.ressources.components import Navbar , apply_border_glitch_effect, apply_custom_css
 import pandas as pd
-import io
 import plotly.graph_objects as go
 import plotly.express as px
 import numpy as np
-import geoip2.database
 import ipaddress
-import os
 from urllib.request import urlretrieve
 import requests
-import zipfile
-import shutil
 import datetime
 from datetime import timedelta
-
 import socket                                                                 
                                                                                 
 def get_ip_location(ip):
@@ -90,9 +84,6 @@ def extract_ips(df):
     if not ip_dst_col and len(ip_columns) > 1:
         ip_dst_col = ip_columns[1]
         
-    if not ip_src_col and not ip_dst_col:
-        st.error("No IP address columns detected")
-        return None, None, None
     
     # Additional logging for debugging
     st.info(f"Using {ip_src_col} as source IP and {ip_dst_col if ip_dst_col else 'no destination column'}")
@@ -469,228 +460,47 @@ def create_ip_map(src_locations, dst_locations, flows):
     return fig
 st.set_page_config(page_title="Dashboard", page_icon="📊", layout="wide")
 
-# Custom CSS for Grafana-like cyberpunk styling
-def apply_custom_css():
-    st.markdown("""
-    <style>
-        /* Dark background with enhanced grid */
-        .main {
-            background-color: #0b0f19;
-            background-image: 
-                linear-gradient(rgba(26, 32, 44, 0.5) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(26, 32, 44, 0.5) 1px, transparent 1px);
-            background-size: 20px 20px;
-            background-position: center;
-        }
-        
-        /* Panel styling with alternating glowing borders */
-        .grafana-panel {
-            background-color: #181b24;
-            border: 1px solid rgba(255, 89, 0, 0.2);
-            border-radius: 3px;
-            padding: 15px;
-            margin-bottom: 15px;
-            box-shadow: 0 0 10px rgba(0, 255, 198, 0.15);
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .grafana-panel:nth-child(odd) {
-            border: 1px solid rgba(0, 255, 198, 0.2);
-            box-shadow: 0 0 10px rgba(255, 89, 0, 0.15);
-        }
-        
-        /* Animated border effect for panels */
-        .grafana-panel::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, #0b0f19, #ff5900, #00f2ff, #0b0f19);
-            background-size: 200% 100%;
-            animation: flowingBorder 4s linear infinite;
-        }
-        
-        @keyframes flowingBorder {
-            0% { background-position: 0% 0; }
-            100% { background-position: 200% 0; }
-        }
-        
-        /* Panel header with neon glow effect */
-        .panel-header {
-            font-size: 16px;
-            font-weight: bold;
-            color: #ff5900;
-            margin-bottom: 10px;
-            padding-bottom: 5px;
-            border-bottom: 1px solid rgba(255, 89, 0, 0.3);
-            text-shadow: 0 0 5px rgba(255, 89, 0, 0.7);
-        }
-        
-        /* Alternate panel headers with cyan */
-        .grafana-panel:nth-child(odd) .panel-header {
-            color: #00f2ff;
-            border-bottom: 1px solid rgba(0, 242, 255, 0.3);
-            text-shadow: 0 0 5px rgba(0, 242, 255, 0.7);
-        }
-        
-        /* Headers with enhanced glow */
-        h1, h2, h3 {
-            color: #E9F8FD !important;
-            font-family: 'Orbitron', sans-serif;
-            text-shadow: 0 0 10px rgba(0, 242, 255, 0.7), 0 0 20px rgba(0, 242, 255, 0.4);
-            letter-spacing: 1px;
-        }
-        
-        /* Title with multi-color glow */
-        h1 {
-            background: linear-gradient(90deg, #00f2ff, #ff5900);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-shadow: 0 0 15px rgba(0, 242, 255, 0.6), 0 0 25px rgba(255, 89, 0, 0.6);
-        }
-        
-        /* Text styling with better contrast */
-        p, li, .stMarkdown, .stText {
-            color: #ced4da !important;
-            text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
-        }
-        
-        /* Button styling with orange hover */
-        .stButton>button {
-            background-color: #0b0f19;
-            color: #00f2ff;
-            border: 1px solid #00f2ff;
-            transition: all 0.3s ease;
-        }
-        
-        .stButton>button:hover {
-            background-color: #ff5900;
-            color: #0b0f19;
-            border: 1px solid #ff5900;
-            box-shadow: 0 0 15px rgba(255, 89, 0, 0.8);
-        }
-        
-        /* Alternate button with opposite color scheme */
-        .stButton:nth-child(odd)>button {
-            color: #ff5900;
-            border: 1px solid #ff5900;
-        }
-        
-        .stButton:nth-child(odd)>button:hover {
-            background-color: #00f2ff;
-            border: 1px solid #00f2ff;
-            box-shadow: 0 0 15px rgba(0, 242, 255, 0.8);
-        }
-        
-        /* Widget labels */
-        .css-81oif8, .css-17ihxae {
-            color: #ff5900 !important;
-        }
-        
-        /* Dataframe styling */
-        .dataframe {
-            background-color: #181b24 !important;
-        }
-        
-        .dataframe th {
-            background-color: #252a37 !important;
-            color: #ff5900 !important;
-        }
-        
-        /* Tabs with neon indicator */
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 8px;
-        }
-        
-        .stTabs [data-baseweb="tab"] {
-            background-color: #181b24;
-            color: #d8d9da;
-            border: 1px solid rgba(0, 242, 255, 0.2);
-            border-radius: 4px 4px 0px 0px;
-            padding: 10px 16px;
-            transition: all 0.3s ease;
-        }
-        
-        .stTabs [aria-selected="true"] {
-            background-color: #181b24 !important;
-            color: #ff5900 !important;
-            border-bottom: 2px solid #ff5900 !important;
-            box-shadow: 0 -2px 8px rgba(255, 89, 0, 0.5);
-        }
-        
-        /* Metric cards with enhanced styling */
-        .metric-card {
-            background-color: #181b24;
-            border-radius: 4px;
-            padding: 15px;
-            border-left: 3px solid #ff5900;
-            box-shadow: 0 0 8px rgba(255, 89, 0, 0.3);
-            margin-bottom: 10px;
-        }
-        
-        .metric-card:nth-child(odd) {
-            border-left: 3px solid #00f2ff;
-            box-shadow: 0 0 8px rgba(0, 242, 255, 0.3);
-        }
-        
-        /* Scrollbars with neon colors */
-        ::-webkit-scrollbar {
-            width: 10px;
-            height: 10px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background: #0b0f19;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-            background: #252a37;
-            border-radius: 5px;
-            border: 1px solid #ff5900;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: #313846;
-            border: 1px solid #00f2ff;
-        }
-        
-        /* Form inputs with neon glow */
-        .stTextInput>div>div>input, 
-        .stNumberInput>div>div>input,
-        .stSelectbox>div>div>select {
-            background-color: #1f2430;
-            color: #d8d9da;
-            border: 1px solid #ff5900 !important;
-        }
-        
-        .stTextInput>div>div>input:focus, 
-        .stNumberInput>div>div>input:focus,
-        .stSelectbox>div>div>select:focus {
-            border: 1px solid #00f2ff !important;
-            box-shadow: 0 0 10px rgba(0, 242, 255, 0.5) !important;
-        }
-        
-        /* Progress bar with gradient */
-        .stProgress > div > div > div {
-            background: linear-gradient(90deg, #00f2ff, #ff5900) !important;
-        }
-    </style>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
-    """, unsafe_allow_html=True)
-
-
-def load_data(uploaded_file):
-    """Load data from uploaded file based on file extension"""
+@st.cache_data(ttl=3600) # Cache data for one hour
+def cached_load_data(uploaded_file):
+    """Load data from uploaded file based on file extension with header detection"""
     file_extension = uploaded_file.name.split('.')[-1].lower()
     
     if file_extension == 'csv':
-        return pd.read_csv(uploaded_file)
+        # Lire les premières lignes pour vérifier si elles contiennent un header
+        try:
+            # Lire quelques lignes pour l'analyse
+            sample = pd.read_csv(uploaded_file, nrows=5)
+            uploaded_file.seek(0)  # Réinitialiser le pointeur du fichier
+            
+            # Vérifier si les en-têtes sont présents en comparant avec les en-têtes attendus
+            expected_headers = ["timestamp", "name", "rule", "interface_in", "interface_out", "mac", 
+                              "src_ip", "dst_ip", "len", "tos", "prec", "ttl", "id", "df", "proto", 
+                              "src_port", "dst_port", "seq", "ack", "window", "flags", "flags2", 
+                              "urgp", "uid", "gid", "mark"]
+            
+            # Si les colonnes actuelles sont des nombres (0, 1, 2, ...) ou ne correspondent pas aux en-têtes attendus
+            if all(str(col).isdigit() for col in sample.columns) or not any(col in expected_headers for col in sample.columns):
+                st.info("En-têtes CSV non détectés. Utilisation des en-têtes prédéfinis.")
+                return pd.read_csv(uploaded_file, header=None, names=expected_headers)
+            else:
+                return pd.read_csv(uploaded_file)
+                
+        except Exception as e:
+            st.error(f"Erreur lors de la vérification des en-têtes: {str(e)}")
+            # Essayons une approche de secours avec les en-têtes prédéfinis
+            uploaded_file.seek(0)
+            return pd.read_csv(uploaded_file, header=None, names=expected_headers)
+            
     elif file_extension == 'parquet':
+        # Les fichiers Parquet ont généralement un schéma avec des noms de colonnes
         return pd.read_parquet(uploaded_file)
+        
+    elif file_extension in ['xls', 'xlsx']:
+        # Pour les fichiers Excel
+        return pd.read_excel(uploaded_file)
+        
     else:
+        st.error(f"Format de fichier non pris en charge: .{file_extension}")
         return None
         
 def create_metric_card(title, value, delta=None):
@@ -713,6 +523,7 @@ def create_metric_card(title, value, delta=None):
         <p style='color: {color}; font-size:1.5rem; font-weight:bold; margin:0;'>{value} {delta_html}</p>
     </div>
     """, unsafe_allow_html=True)
+    
 def create_stacked_area_chart(df, timestamp_col, group_col):
     """Create a cyberpunk-styled stacked area chart for temporal visualization"""
     if timestamp_col not in df.columns or group_col not in df.columns:
@@ -1076,7 +887,7 @@ def time_selector(on_refresh_callback=None):
         time_value = 30
     elif time_range == "Last 90 days":
         start_time = now - timedelta(days=90)
-        time_unit = "days"
+        time_unit = "days" 
         time_value = 90
     elif time_range == "Last year":
         start_time = now - timedelta(days=365)
@@ -1509,6 +1320,7 @@ def create_ip_port_flow_diagram(df, src_ip_col, dst_ip_col, dst_port_col, filter
     
     return fig
 
+
 def parse_timestamp(df, timestamp_col):
     """Parse timestamp column with improved handling for multiple formats"""
     # Create a copy to avoid warnings about modifying the original dataframe
@@ -1520,6 +1332,29 @@ def parse_timestamp(df, timestamp_col):
     
     # Sample the column to identify the format
     sample_values = df_copy[timestamp_col].dropna().astype(str).iloc[:10].tolist()
+    
+    # Format spécifique: Mar 10 20:26:05
+    if any(len(str(val).split()) == 3 and str(val).split()[0] in ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] for val in sample_values):
+        try:
+            # Essayer d'ajouter l'année courante si elle est absente
+            current_year = datetime.datetime.now().year
+            
+            def add_year_if_needed(ts_str):
+                try:
+                    if isinstance(ts_str, str):
+                        parts = ts_str.split()
+                        if len(parts) == 3:  # Format "Mar 10 20:26:05" sans année
+                            return f"{parts[0]} {parts[1]} {current_year} {parts[2]}"
+                    return ts_str
+                except:
+                    return ts_str
+            
+            # Appliquer la transformation et parser
+            df_copy[timestamp_col] = df_copy[timestamp_col].apply(add_year_if_needed)
+            df_copy[timestamp_col] = pd.to_datetime(df_copy[timestamp_col], format="%b %d %Y %H:%M:%S")
+            return df_copy
+        except Exception as e:
+            st.warning(f"Erreur lors du parsing du format spécial: {str(e)}")
     
     # Try to detect Elasticsearch/Kibana format with '@' symbol
     if any('@' in str(val) for val in sample_values):
@@ -1565,7 +1400,8 @@ def parse_timestamp(df, timestamp_col):
         '%d %b %Y',               # Day first with month name
         '%Y%m%d',                 # Compact date format
         '%b %d, %Y %H:%M:%S',     # Month name with time
-        '%b %d, %Y %H:%M:%S.%f'   # Month name with time and milliseconds
+        '%b %d, %Y %H:%M:%S.%f',  # Month name with time and milliseconds
+        '%b %d %H:%M:%S'          # Format "Mar 10 20:26:05" (sans année)
     ]
     
     for fmt in formats_to_try:
@@ -1580,7 +1416,9 @@ def parse_timestamp(df, timestamp_col):
         # Extract ISO-like format
         r'(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})',
         # Extract Elasticsearch format
-        r'([A-Za-z]{3}\s\d{1,2},\s\d{4}).*?(\d{2}:\d{2}:\d{2})'
+        r'([A-Za-z]{3}\s\d{1,2},\s\d{4}).*?(\d{2}:\d{2}:\d{2})',
+        # Extract format "Mar 10 20:26:05"
+        r'([A-Za-z]{3})\s+(\d{1,2})\s+(\d{2}:\d{2}:\d{2})'
     ]
     
     for pattern in date_patterns:
@@ -1622,111 +1460,30 @@ def parse_timestamp(df, timestamp_col):
     
     # Return original dataframe but with warning
     return df
-# Ajoutez cette fonction pour créer un effet de glitch sur les métriques et graphiques
-def apply_border_glitch_effect():
-    st.markdown("""
-    <style>
-        /* Effet de glitch pour les contours */
-        .grafana-panel, .metric-card-container, div.stPlotlyChart, div.element-container div div[data-testid="stMetricValue"] > div {
-            position: relative;
-            z-index: 1;
-            overflow: hidden;
-        }
-        
-        .grafana-panel::after, .metric-card-container::after, div.stPlotlyChart::after, div.element-container div div[data-testid="stMetricValue"] > div::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            border: 1px solid rgba(0, 242, 255, 0.3);
-            pointer-events: none;
-            z-index: -1;
-            animation: glitchBorder 6s infinite;
-        }
-        
-        @keyframes glitchBorder {
-            0% {
-                clip-path: inset(0 0 0 0);
-                border-color: rgba(0, 242, 255, 0.3);
-            }
-            3% {
-                clip-path: inset(0 3px 0 0);
-                border-color: rgba(255, 89, 0, 0.5);
-            }
-            6% {
-                clip-path: inset(0 0 3px 0);
-                border-color: rgba(0, 242, 255, 0.3);
-            }
-            9% {
-                clip-path: inset(0 0 0 3px);
-                border-color: rgba(255, 89, 0, 0.5);
-            }
-            12% {
-                clip-path: inset(3px 0 0 0);
-                border-color: rgba(0, 242, 255, 0.3);
-            }
-            15% {
-                clip-path: inset(0 0 0 0);
-                border-color: rgba(255, 89, 0, 0.5);
-            }
-            48% {
-                clip-path: inset(0 0 0 0);
-                border-color: rgba(0, 242, 255, 0.3);
-            }
-            50% {
-                clip-path: inset(0 3px 0 0);
-                border-color: rgba(255, 89, 0, 0.5);
-            }
-            52% {
-                clip-path: inset(0 0 3px 0);
-                border-color: rgba(0, 242, 255, 0.3);
-            }
-            54% {
-                clip-path: inset(0 0 0 3px);
-                border-color: rgba(255, 89, 0, 0.5);
-            }
-            56% {
-                clip-path: inset(3px 0 0 0);
-                border-color: rgba(0, 242, 255, 0.3);
-            }
-            58% {
-                clip-path: inset(0 0 0 0);
-                border-color: rgba(255, 89, 0, 0.5);
-            }
-            82% {
-                clip-path: inset(0 0 0 0);
-                border-color: rgba(0, 242, 255, 0.3);
-            }
-            84% {
-                clip-path: inset(0 0 3px 0);
-                border-color: rgba(255, 89, 0, 0.5);
-            }
-            86% {
-                clip-path: inset(0 3px 0 0);
-                border-color: rgba(0, 242, 255, 0.3);
-            }
-            88% {
-                clip-path: inset(0 0 0 0);
-                border-color: rgba(255, 89, 0, 0.5);
-            }
-            100% {
-                clip-path: inset(0 0 0 0);
-                border-color: rgba(0, 242, 255, 0.3);
-            }
-        }
-        
-        /* Harmonisation des couleurs des métriques */
-        .metric-card-container {
-            background-color: #181b24;
-            border-radius: 3px;
-            border: 1px solid #00f2ff;
-            box-shadow: 0 0 8px rgba(0, 242, 255, 0.3);
-            margin-bottom: 10px;
-        }
-    </style>
-    """, unsafe_allow_html=True)
+
+
+
+
+@st.cache_data(ttl=3600)
+def cached_extract_ips(df):
+    """Version mise en cache de extract_ips pour améliorer les performances"""
+    return extract_ips(df)
+
+@st.cache_data
+def filter_df_by_time_cached(df, timestamp_col, start_time, end_time):
+    """Version mise en cache du filtre temporel"""
+    return filter_df_by_time(df, timestamp_col, start_time, end_time)
+
+@st.cache_data
+def detect_timestamp_cols_cached(df):
+    """Version mise en cache de la détection des colonnes timestamp"""
+    return detect_timestamp_cols(df)
+
+@st.cache_data
+def cached_parse_timestamp(df, timestamp_col):
+    """Version mise en cache du parsing de timestamp"""
+    return parse_timestamp(df, timestamp_col)
+
 def main():
     apply_custom_css()
     apply_border_glitch_effect() # Apply glitch effect to metrics and plots
@@ -1743,7 +1500,7 @@ def main():
             <div style='height: 2px; width: 100px; background: linear-gradient(90deg, rgba(255,89,0,0), #ff5900, rgba(255,89,0,0));'></div>
         </div>
         <p style='color: #00f2ff; font-family: monospace; letter-spacing: 2px; margin-top: 5px;'>
-            ADVANCED <span style='color: #ff5900;'>DATA</span> ANALYSIS INTERFACE
+            ADVANCED <span style='color: #ff5900;'>DATA ANALYSIS</span> INTERFACE
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -1805,478 +1562,511 @@ def main():
     tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🔍 Exploration", "⚙️ Settings"])
     
     with tab1:
-        # Create columns for layout
-        col1, col2 = st.columns([1, 3])
+        # File upload section with cyberpunk styling
+        st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
+        st.markdown("<div class='panel-header'>DATA SOURCE</div>", unsafe_allow_html=True)
+        uploaded_file = st.file_uploader(
+            "DROP CSV/PARQUET FILE",
+            type=["csv", "parquet"],
+            help="Supported file formats: CSV and Parquet"
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
         
-        with col1:
-            # File upload section with cyberpunk styling
-            st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
-            st.markdown("<div class='panel-header'>DATA SOURCE</div>", unsafe_allow_html=True)
-            uploaded_file = st.file_uploader(
-                "DROP CSV/PARQUET FILE",
-                type=["csv", "parquet"],
-                help="Supported file formats: CSV and Parquet"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-        with col2:
-            if uploaded_file is not None:
-                try:
-                    # Load and display the data
-                    df = load_data(uploaded_file)
+    
+        if uploaded_file is not None:
+            try:
+                # Stocker un ID unique basé sur le nom et la taille du fichier pour la mise en cache
+                file_id = f"{uploaded_file.name}_{uploaded_file.size}"
+                
+                # Vérifier si le fichier est en cache
+                if "file_id" not in st.session_state or st.session_state.file_id != file_id:
+                    # Nouveau fichier chargé, mettre à jour l'ID et effacer les états précédents
+                    st.session_state.file_id = file_id
+                    if "filtered_df" in st.session_state:
+                        del st.session_state.filtered_df
+                    if "time_filter_applied" in st.session_state:
+                        st.session_state.time_filter_applied = False
+                        
+                # Charger les données avec cache
+                df = cached_load_data(uploaded_file)
+                
+                if df is not None:
+                    # Store the original dataframe in the session state when first uploading
+                    if "original_df" not in st.session_state:
+                        st.session_state.original_df = df
+                        
+                    # Initialize filtered_df in session state if not present
+                    if "filtered_df" not in st.session_state:
+                        st.session_state.filtered_df = df
+                        
+                    # Initialize time filter applied flag
+                    if "time_filter_applied" not in st.session_state:
+                        st.session_state.time_filter_applied = False
                     
-                    if df is not None:
-                        # Store the original dataframe in the session state when first uploading
-                        if "original_df" not in st.session_state:
-                            st.session_state.original_df = df
-                            
-                        # Initialize filtered_df in session state if not present
-                        if "filtered_df" not in st.session_state:
-                            st.session_state.filtered_df = df
-                            
-                        # Initialize time filter applied flag
-                        if "time_filter_applied" not in st.session_state:
-                            st.session_state.time_filter_applied = False
+                    # Detect timestamp columns with cache
+                    timestamp_cols = detect_timestamp_cols_cached(df)
+                    
+                    # Create time selector panel if timestamp columns exist
+                    if timestamp_cols:
+                        st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
                         
-                        # Detect timestamp columns
-                        timestamp_cols = detect_timestamp_cols(df)
-                        
-                        # Create time selector panel if timestamp columns exist
-                        if timestamp_cols:
-                            st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
+                        # Add timestamp column selector
+                        if "timestamp_col" not in st.session_state and timestamp_cols:
+                            st.session_state.timestamp_col = timestamp_cols[0]
                             
-                            # Add timestamp column selector
-                            if "timestamp_col" not in st.session_state and timestamp_cols:
-                                st.session_state.timestamp_col = timestamp_cols[0]
-                                
-                            timestamp_col = st.selectbox(
-                                "Select timestamp column",
-                                timestamp_cols,
-                                index=timestamp_cols.index(st.session_state.timestamp_col) if st.session_state.timestamp_col in timestamp_cols else 0,
-                                key="timestamp_col_select",
-                                on_change=lambda: setattr(st.session_state, 'timestamp_col', st.session_state.timestamp_col_select)
+                        timestamp_col = st.selectbox(
+                            "Select timestamp column",
+                            timestamp_cols,
+                            index=timestamp_cols.index(st.session_state.timestamp_col) if st.session_state.timestamp_col in timestamp_cols else 0,
+                            key="timestamp_col_select",
+                            on_change=lambda: setattr(st.session_state, 'timestamp_col', st.session_state.timestamp_col_select)
+                        )
+                        
+                        # Define refresh callback function
+                        def refresh_data():
+                            """Function to refresh data based on time filter"""
+                            st.session_state.time_filter_applied = True
+                            
+                            # Get original dataframe and apply time filter
+                            original_df = st.session_state.original_df
+                            filtered_df = filter_df_by_time(original_df, st.session_state.timestamp_col, 
+                                                            st.session_state.start_time, st.session_state.end_time)
+                            
+                            # Store filtered dataframe in session state
+                            st.session_state.filtered_df = filtered_df
+                        
+                        # Add time range selector with refresh callback
+                        start_time, end_time, time_unit, time_value, refresh_pressed = time_selector(on_refresh_callback=refresh_data)
+                        
+                        # Store time range in session state
+                        st.session_state.start_time = start_time
+                        st.session_state.end_time = end_time
+                        
+                        # Use filtered_df if refresh was pressed or time filter was previously applied
+                        # Otherwise use the original dataframe
+                        if refresh_pressed or st.session_state.time_filter_applied:
+                            if "cached_filtered_key" not in st.session_state:
+                                st.session_state.cached_filtered_key = f"{timestamp_col}_{start_time}_{end_time}"
+                            else:
+                                # Vérifier si les paramètres de filtre ont changé
+                                new_key = f"{timestamp_col}_{start_time}_{end_time}"
+                                if new_key != st.session_state.cached_filtered_key:
+                                    st.session_state.cached_filtered_key = new_key
+                                    # Appliquer le nouveau filtre
+                                    st.session_state.filtered_df = filter_df_by_time_cached(df, timestamp_col, start_time, end_time)
+                            
+                            display_df = st.session_state.filtered_df
+                        else:
+                            display_df = df
+                        
+                        # Create time histogram to show data distribution
+                        if len(display_df) > 0 and timestamp_col in display_df.columns:
+                            # Convert to datetime if not already
+                            if not pd.api.types.is_datetime64_any_dtype(display_df[timestamp_col]):
+                                display_df = parse_timestamp(display_df.copy(), timestamp_col)
+                            
+                            # Create time histogram
+                            fig = px.histogram(
+                                display_df, 
+                                x=timestamp_col,
+                                nbins=50,
+                                color_discrete_sequence=["#00f2ff"]
                             )
                             
-                            # Define refresh callback function
-                            def refresh_data():
-                                """Function to refresh data based on time filter"""
-                                st.session_state.time_filter_applied = True
-                                
-                                # Get original dataframe and apply time filter
-                                original_df = st.session_state.original_df
-                                filtered_df = filter_df_by_time(original_df, st.session_state.timestamp_col, 
-                                                              st.session_state.start_time, st.session_state.end_time)
-                                
-                                # Store filtered dataframe in session state
-                                st.session_state.filtered_df = filtered_df
+                            fig.update_layout(
+                                template="plotly_dark",
+                                plot_bgcolor='rgba(23, 28, 38, 0.8)',
+                                paper_bgcolor='rgba(23, 28, 38, 0.0)',
+                                margin=dict(l=10, r=10, t=10, b=30),
+                                height=150,
+                                xaxis=dict(
+                                    title=None,
+                                    showgrid=True,
+                                    gridcolor='rgba(26, 32, 44, 0.8)',
+                                ),
+                                yaxis=dict(
+                                    title="Count",
+                                    showgrid=True,
+                                    gridcolor='rgba(26, 32, 44, 0.8)',
+                                    title_font=dict(color='#00f2ff', size=10)
+                                ),
+                                bargap=0.05
+                            )
                             
-                            # Add time range selector with refresh callback
-                            start_time, end_time, time_unit, time_value, refresh_pressed = time_selector(on_refresh_callback=refresh_data)
+                            st.plotly_chart(fig, use_container_width=True)
                             
-                            # Store time range in session state
-                            st.session_state.start_time = start_time
-                            st.session_state.end_time = end_time
-                            
-                            # Use filtered_df if refresh was pressed or time filter was previously applied
-                            # Otherwise use the original dataframe
-                            if refresh_pressed or st.session_state.time_filter_applied:
-                                display_df = st.session_state.filtered_df
-                            else:
-                                display_df = df
-                            
-                            # Create time histogram to show data distribution
-                            if len(display_df) > 0 and timestamp_col in display_df.columns:
-                                # Convert to datetime if not already
-                                if not pd.api.types.is_datetime64_any_dtype(display_df[timestamp_col]):
-                                    display_df = parse_timestamp(display_df.copy(), timestamp_col)
-                                
-                                # Create time histogram
-                                fig = px.histogram(
-                                    display_df, 
-                                    x=timestamp_col,
-                                    nbins=50,
-                                    color_discrete_sequence=["#00f2ff"]
-                                )
-                                
-                                fig.update_layout(
-                                    template="plotly_dark",
-                                    plot_bgcolor='rgba(23, 28, 38, 0.8)',
-                                    paper_bgcolor='rgba(23, 28, 38, 0.0)',
-                                    margin=dict(l=10, r=10, t=10, b=30),
-                                    height=150,
-                                    xaxis=dict(
-                                        title=None,
-                                        showgrid=True,
-                                        gridcolor='rgba(26, 32, 44, 0.8)',
-                                    ),
-                                    yaxis=dict(
-                                        title="Count",
-                                        showgrid=True,
-                                        gridcolor='rgba(26, 32, 44, 0.8)',
-                                        title_font=dict(color='#00f2ff', size=10)
-                                    ),
-                                    bargap=0.05
-                                )
-                                
-                                st.plotly_chart(fig, use_container_width=True)
-                                
-                                # Show data metrics for the filtered timeframe
-                                data_metrics_cols = st.columns(4)
-                                with data_metrics_cols[0]:
-                                    create_metric_card("FILTERED ROWS", f"{len(display_df):,}")
-                                with data_metrics_cols[1]:
-                                    percent_kept = round((len(display_df) / len(df)) * 100, 1)
-                                    create_metric_card("% OF TOTAL", f"{percent_kept}%")
-                                with data_metrics_cols[2]:
-                                    create_metric_card("START TIME", f"{start_time.strftime('%H:%M:%S')}")
-                                with data_metrics_cols[3]:
-                                    create_metric_card("END TIME", f"{end_time.strftime('%H:%M:%S')}")
-                            
-                            st.markdown("</div>", unsafe_allow_html=True)
-                            
-                            # Use display_df for all subsequent operations
-                            df = display_df
-                        
-                        # Rest of your code continues unchanged, just make sure to use the df variable
-                        # which now contains either filtered_df or the original based on refresh button
-                        
-                        # File details panel
-                        st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
-                        st.markdown("<div class='panel-header'>FILE DETAILS</div>", unsafe_allow_html=True)
-                        
-                        # Display metrics like Grafana
-                        metrics_cols = st.columns(4)
-                        with metrics_cols[0]:
-                            create_metric_card("ROWS", f"{df.shape[0]:,}")
-                        with metrics_cols[1]:
-                            create_metric_card("COLUMNS", f"{df.shape[1]}")
-                        with metrics_cols[2]:
-                            nulls_percent = round((df.isnull().sum().sum() / (df.shape[0] * df.shape[1])) * 100, 2) if df.shape[0] * df.shape[1] > 0 else 0
-                            create_metric_card("NULL VALUES", f"{nulls_percent}%")
-                        with metrics_cols[3]:
-                            create_metric_card("MEMORY USAGE", f"{round(df.memory_usage(deep=True).sum() / 1048576, 2)} MB")
+                            # Show data metrics for the filtered timeframe
+                            data_metrics_cols = st.columns(4)
+                            with data_metrics_cols[0]:
+                                create_metric_card("FILTERED ROWS", f"{len(display_df):,}")
+                            with data_metrics_cols[1]:
+                                percent_kept = round((len(display_df) / len(df)) * 100, 1)
+                                create_metric_card("% OF TOTAL", f"{percent_kept}%")
+                            with data_metrics_cols[2]:
+                                create_metric_card("START TIME", f"{start_time.strftime('%H:%M:%S')}")
+                            with data_metrics_cols[3]:
+                                create_metric_card("END TIME", f"{end_time.strftime('%H:%M:%S')}")
                         
                         st.markdown("</div>", unsafe_allow_html=True)
                         
-                        # Column information panel
-                        st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
-                        st.markdown("<div class='panel-header'>COLUMN INFORMATION</div>", unsafe_allow_html=True)
-                        
-                        col_info = pd.DataFrame({
-                            'Data Type': df.dtypes.astype(str),  # Convert dtype objects to strings
-                            'Non-Null Values': df.count(),
-                            'Null Values': df.isnull().sum(),
-                            'Unique Values': [df[col].nunique() for col in df.columns]
-                        })
-                        st.dataframe(col_info, use_container_width=True)
-                        st.markdown("</div>", unsafe_allow_html=True)
-                        
-                        # Sample data panel
-                        st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
-                        st.markdown("<div class='panel-header'>SAMPLE DATA</div>", unsafe_allow_html=True)
-                        st.dataframe(df.head(5), use_container_width=True)
-                        st.markdown("</div>", unsafe_allow_html=True)
-                        
-                        # IP geolocation panel
-                        st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
-                        st.markdown("<div class='panel-header'>IP GEOLOCATION</div>", unsafe_allow_html=True)
+                        # Use display_df for all subsequent operations
+                        df = display_df
+                    
+                    # Rest of your code continues unchanged, just make sure to use the df variable
+                    # which now contains either filtered_df or the original based on refresh button
+                    
+                    # File details panel
+                    st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
+                    st.markdown("<div class='panel-header'>FILE DETAILS</div>", unsafe_allow_html=True)
+                    
+                    # Display metrics like Grafana
+                    metrics_cols = st.columns(4)
+                    with metrics_cols[0]:
+                        create_metric_card("ROWS", f"{df.shape[0]:,}")
+                    with metrics_cols[1]:
+                        create_metric_card("COLUMNS", f"{df.shape[1]}")
+                    with metrics_cols[2]:
+                        nulls_percent = round((df.isnull().sum().sum() / (df.shape[0] * df.shape[1])) * 100, 2) if df.shape[0] * df.shape[1] > 0 else 0
+                        create_metric_card("NULL VALUES", f"{nulls_percent}%")
+                    with metrics_cols[3]:
+                        create_metric_card("MEMORY USAGE", f"{round(df.memory_usage(deep=True).sum() / 1048576, 2)} MB")
+                    
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    
+                    # Column information panel
+                    st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
+                    st.markdown("<div class='panel-header'>COLUMN INFORMATION</div>", unsafe_allow_html=True)
+                    
+                    col_info = pd.DataFrame({
+                        'Data Type': df.dtypes.astype(str),  # Convert dtype objects to strings
+                        'Non-Null Values': df.count(),
+                        'Null Values': df.isnull().sum(),
+                        'Unique Values': [df[col].nunique() for col in df.columns]
+                    })
+                    st.dataframe(col_info, use_container_width=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    
+                    # Sample data panel
+                    st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
+                    st.markdown("<div class='panel-header'>SAMPLE DATA</div>", unsafe_allow_html=True)
+                    st.dataframe(df.head(5), use_container_width=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    
+                    # IP geolocation panel
+                    st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
+                    st.markdown("<div class='panel-header'>IP GEOLOCATION</div>", unsafe_allow_html=True)
 
-                        # Check if the dataframe might contain IP addresses
-                        ip_cols = []
-                        for col in df.columns:
-                            col_lower = col.lower()
-                            if 'ip' in col_lower:
-                                ip_cols.append(col)
+                    # Check if the dataframe might contain IP addresses
+                    ip_cols = []
+                    for col in df.columns:
+                        col_lower = col.lower()
+                        if 'ip' in col_lower:
+                            ip_cols.append(col)
 
-                        if ip_cols:
-                            st.info("🌐 IP address columns detected: " + ", ".join(ip_cols))
-                            
-                            geoip_process_col1, geoip_process_col2 = st.columns(2)
-                            with geoip_process_col1:
-                                geoip_process = st.button("🔍 ANALYZE IP LOCATIONS", key="process_ips")
-        
-                        # Remplacez la section qui affiche la carte dans la fonction main()
+                    if ip_cols:
+                        st.info("🌐 IP address columns detected: " + ", ".join(ip_cols))
+                        
+                    
+                        geoip_process = st.button("🔍 ANALYZE IP LOCATIONS", key="process_ips")
+    
+                    # Remplacez la section qui affiche la carte dans la fonction main()
 
-                        if geoip_process:
-                            with st.spinner("Extracting IP addresses and looking up locations..."):
-                                # Add a cool cyberpunk banner for the processing
-                                st.markdown("""
-                                <div style='background-color: #0a0f19; padding: 15px; border-radius: 3px; 
-                                    border: 1px solid #00f2ff; box-shadow: 0 0 20px rgba(0, 242, 255, 0.5);'>
-                                    <div style='display: flex; align-items: center; justify-content: center;'>
-                                        <div style='font-family: "Orbitron", sans-serif; font-size: 20px; color: #00f2ff; 
-                                            text-shadow: 0 0 10px rgba(0, 242, 255, 0.7); letter-spacing: 3px;'>
-                                            CYBER THREAT INTELLIGENCE
-                                        </div>
+                    if geoip_process:
+                        with st.spinner("Extracting IP addresses and looking up locations..."):
+                            # Add a cool cyberpunk banner for the processing
+                            st.markdown("""
+                            <div style='background-color: #0a0f19; padding: 15px; border-radius: 3px; 
+                                border: 1px solid #00f2ff; box-shadow: 0 0 20px rgba(0, 242, 255, 0.5);'>
+                                <div style='display: flex; align-items: center; justify-content: center;'>
+                                    <div style='font-family: "Orbitron", sans-serif; font-size: 20px; color: #00f2ff; 
+                                        text-shadow: 0 0 10px rgba(0, 242, 255, 0.7); letter-spacing: 3px;'>
+                                        CYBER THREAT INTELLIGENCE
                                     </div>
-                                    <div style='height: 2px; background: linear-gradient(90deg, rgba(0,0,0,0), #00f2ff, rgba(0,0,0,0)); 
-                                        margin: 10px 0; animation: pulse 2s infinite;'></div>
-                                    <style>
-                                        @keyframes pulse {
-                                            0% { opacity: 0.4; }
-                                            50% { opacity: 1; }
-                                            100% { opacity: 0.4; }
-                                        }
-                                    </style>
+                                </div>
+                                <div style='height: 2px; background: linear-gradient(90deg, rgba(0,0,0,0), #00f2ff, rgba(0,0,0,0)); 
+                                    margin: 10px 0; animation: pulse 2s infinite;'></div>
+                                <style>
+                                    @keyframes pulse {
+                                        0% { opacity: 0.4; }
+                                        50% { opacity: 1; }
+                                        100% { opacity: 0.4; }
+                                    }
+                                </style>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # Extract IP data
+                            src_locations, dst_locations, flows = cached_extract_ips(df)
+                            
+                            if src_locations or dst_locations:
+                                st.success(f"✅ Found {len(src_locations) if src_locations else 0} source IPs and {len(dst_locations) if dst_locations else 0} destination IPs with geolocation data.")
+                                
+                                # Create cyberpunk-styled threat map header
+                                st.markdown("""
+                                <div style='margin: 20px 0; text-align: center;'>
+                                    <div style='font-family: "Orbitron", sans-serif; font-size: 24px; font-weight: bold;
+                                        background: linear-gradient(90deg, #00f2ff, #ff5900);
+                                        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+                                        text-shadow: 0 0 5px rgba(0, 242, 255, 0.5); letter-spacing: 2px;'>
+                                        GLOBAL ATTACK VECTOR MAP
+                                    </div>
+                                    <div style='font-family: monospace; color: #00ff9d; margin-top: 5px;'>
+                                        Real-time visualization of network attack flows
+                                    </div>
                                 </div>
                                 """, unsafe_allow_html=True)
                                 
-                                # Extract IP data
-                                src_locations, dst_locations, flows = extract_ips(df)
+                                # Create and display map with performance optimizations
+                                fig = create_ip_map(src_locations, dst_locations, flows)
+
+                                # Display chart with specific configuration to optimize performance
+                                st.plotly_chart(fig, use_container_width=True, config={
+                                    'displayModeBar': True,
+                                    'modeBarButtonsToRemove': [
+                                        'select2d', 'lasso2d', 'hoverClosestGeo', 
+                                        'autoScale2d', 'resetScale2d', 'toggleHover'
+                                    ],
+                                    'displaylogo': False,
+                                    'scrollZoom': True,
+                                    'responsive': True,
+                                    'staticPlot': False,  # Set to True for even better performance but loses interactivity
+                                })
+
+                                # Add performance note
+                                st.markdown("""
+                                <div style="background-color: #181b24; padding: 10px; border-radius: 3px; margin-top: 5px;">
+                                    <span style="color: #00f2ff; font-size: 0.8rem;">💡 <strong>Performance Tip:</strong> 
+                                    If the map is lagging, try switching between projection types using the buttons above the map.
+                                    The Globe view shows accurate paths while the Flat view may be faster.</span>
+                                </div>
+                                """, unsafe_allow_html=True)
                                 
-                                if src_locations or dst_locations:
-                                    st.success(f"✅ Found {len(src_locations) if src_locations else 0} source IPs and {len(dst_locations) if dst_locations else 0} destination IPs with geolocation data.")
-                                    
-                                    # Create cyberpunk-styled threat map header
+                                # Show flow statistics with enhanced styling
+                                if flows:
                                     st.markdown("""
-                                    <div style='margin: 20px 0; text-align: center;'>
-                                        <div style='font-family: "Orbitron", sans-serif; font-size: 24px; font-weight: bold;
-                                            background: linear-gradient(90deg, #00f2ff, #ff5900);
-                                            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-                                            text-shadow: 0 0 5px rgba(0, 242, 255, 0.5); letter-spacing: 2px;'>
-                                            GLOBAL ATTACK VECTOR MAP
+                                    <div style='margin-top: 25px; margin-bottom: 15px;'>
+                                        <div style='font-family: "Orbitron", sans-serif; font-size: 20px; color: #00f2ff; 
+                                            text-shadow: 0 0 10px rgba(0, 242, 255, 0.5); letter-spacing: 2px;'>
+                                            TRAFFIC FLOW INTELLIGENCE
                                         </div>
-                                        <div style='font-family: monospace; color: #00ff9d; margin-top: 5px;'>
-                                            Real-time visualization of network attack flows
-                                        </div>
+                                        <div style='height: 2px; background: linear-gradient(90deg, rgba(0,0,0,0), #00f2ff, rgba(0,0,0,0)); 
+                                            margin: 10px 0;'></div>
                                     </div>
                                     """, unsafe_allow_html=True)
                                     
-                                    # Create and display map with performance optimizations
-                                    fig = create_ip_map(src_locations, dst_locations, flows)
-
-                                    # Display chart with specific configuration to optimize performance
-                                    st.plotly_chart(fig, use_container_width=True, config={
-                                        'displayModeBar': True,
-                                        'modeBarButtonsToRemove': [
-                                            'select2d', 'lasso2d', 'hoverClosestGeo', 
-                                            'autoScale2d', 'resetScale2d', 'toggleHover'
-                                        ],
-                                        'displaylogo': False,
-                                        'scrollZoom': True,
-                                        'responsive': True,
-                                        'staticPlot': False,  # Set to True for even better performance but loses interactivity
-                                    })
-
-                                    # Add performance note
-                                    st.markdown("""
-                                    <div style="background-color: #181b24; padding: 10px; border-radius: 3px; margin-top: 5px;">
-                                        <span style="color: #00f2ff; font-size: 0.8rem;">💡 <strong>Performance Tip:</strong> 
-                                        If the map is lagging, try switching between projection types using the buttons above the map.
-                                        The Globe view shows accurate paths while the Flat view may be faster.</span>
-                                    </div>
-                                    """, unsafe_allow_html=True)
+                                    # Create DataFrame from flows
+                                    flow_df = pd.DataFrame(flows)
                                     
-                                    # Show flow statistics with enhanced styling
-                                    if flows:
+                                    # Group by country pairs
+                                    country_flows = flow_df.groupby(['src_country', 'dst_country'])['count'].sum().reset_index()
+                                    country_flows = country_flows.sort_values('count', ascending=False)
+                                    
+                                    # Group by ISP pairs for broader view
+                                    isp_flows = flow_df.groupby(['src_isp', 'dst_isp'])['count'].sum().reset_index()
+                                    isp_flows = isp_flows.sort_values('count', ascending=False)
+                                    
+                                    # Create metrics with enhanced styling
+                                    metric_cols = st.columns(4)
+                                    with metric_cols[0]:
+                                        create_metric_card("TOTAL FLOWS", f"{len(flows)}")
+                                    with metric_cols[1]:
+                                        create_metric_card("COUNTRIES", f"{country_flows['src_country'].nunique() + country_flows['dst_country'].nunique()}")
+                                    with metric_cols[2]:
+                                        create_metric_card("SOURCE IPs", f"{len(src_locations) if src_locations else 0}")
+                                    with metric_cols[3]:
+                                        create_metric_card("DEST IPs", f"{len(dst_locations) if dst_locations else 0}")
+                                    
+                                    # Show top flows with enhanced styling
+                                    col1, col2 = st.columns(2)
+                                    
+                                    with col1:
                                         st.markdown("""
-                                        <div style='margin-top: 25px; margin-bottom: 15px;'>
-                                            <div style='font-family: "Orbitron", sans-serif; font-size: 20px; color: #00f2ff; 
-                                                text-shadow: 0 0 10px rgba(0, 242, 255, 0.5); letter-spacing: 2px;'>
-                                                TRAFFIC FLOW INTELLIGENCE
-                                            </div>
-                                            <div style='height: 2px; background: linear-gradient(90deg, rgba(0,0,0,0), #00f2ff, rgba(0,0,0,0)); 
-                                                margin: 10px 0;'></div>
+                                        <div style='font-family: "Orbitron", sans-serif; color: #ff5900; 
+                                            text-shadow: 0 0 5px rgba(255, 89, 0, 0.5); margin-bottom: 10px;'>
+                                            TOP COUNTRY ROUTES
                                         </div>
                                         """, unsafe_allow_html=True)
-                                        
-                                        # Create DataFrame from flows
-                                        flow_df = pd.DataFrame(flows)
-                                        
-                                        # Group by country pairs
-                                        country_flows = flow_df.groupby(['src_country', 'dst_country'])['count'].sum().reset_index()
-                                        country_flows = country_flows.sort_values('count', ascending=False)
-                                        
-                                        # Group by ISP pairs for broader view
-                                        isp_flows = flow_df.groupby(['src_isp', 'dst_isp'])['count'].sum().reset_index()
-                                        isp_flows = isp_flows.sort_values('count', ascending=False)
-                                        
-                                        # Create metrics with enhanced styling
-                                        metric_cols = st.columns(4)
-                                        with metric_cols[0]:
-                                            create_metric_card("TOTAL FLOWS", f"{len(flows)}")
-                                        with metric_cols[1]:
-                                            create_metric_card("COUNTRIES", f"{country_flows['src_country'].nunique() + country_flows['dst_country'].nunique()}")
-                                        with metric_cols[2]:
-                                            create_metric_card("SOURCE IPs", f"{len(src_locations) if src_locations else 0}")
-                                        with metric_cols[3]:
-                                            create_metric_card("DEST IPs", f"{len(dst_locations) if dst_locations else 0}")
-                                        
-                                        # Show top flows with enhanced styling
-                                        col1, col2 = st.columns(2)
-                                        
-                                        with col1:
-                                            st.markdown("""
-                                            <div style='font-family: "Orbitron", sans-serif; color: #ff5900; 
-                                                text-shadow: 0 0 5px rgba(255, 89, 0, 0.5); margin-bottom: 10px;'>
-                                                TOP COUNTRY ROUTES
-                                            </div>
-                                            """, unsafe_allow_html=True)
-                                            st.dataframe(country_flows.head(10), use_container_width=True)
-                                        
-                                        with col2:
-                                            st.markdown("""
-                                            <div style='font-family: "Orbitron", sans-serif; color: #00ff9d; 
-                                                text-shadow: 0 0 5px rgba(0, 255, 157, 0.5); margin-bottom: 10px;'>
-                                                TOP ISP CONNECTIONS
-                                            </div>
-                                            """, unsafe_allow_html=True)
-                                            st.dataframe(isp_flows.head(10), use_container_width=True)
-                                else:
-                                    st.error("No valid IP addresses with geolocation data found. Please check your IP columns.")
-                        else:
-                            st.info("No IP address columns detected in this dataset.")
-
-                        st.markdown("</div>", unsafe_allow_html=True)
-                        
-                    else:
-                        st.error("Unsupported file format. Please upload a CSV or Parquet file.")
-                except Exception as e:
-                    st.error(f"Error loading data: {str(e)}")
-
-        fig = px.histogram(
-        display_df, 
-        x=timestamp_col,
-        nbins=50,
-        color_discrete_sequence=["#ff5900", "#00f2ff"]  # Alternating colors
-    )
-
-        # Apply cyberpunk styling
-        fig = cyberpunk_plot_layout(fig, height=150)
-
-        st.plotly_chart(fig, use_container_width=True)
-        if 'filtered_df' in st.session_state and timestamp_cols:
-            st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
-            st.markdown("<div class='panel-header'>TEMPORAL EVENT DISTRIBUTION</div>", unsafe_allow_html=True)
-            
-            # Sélection des colonnes
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                selected_time_col = st.selectbox(
-                    "Time Axis",
-                    timestamp_cols,
-                    key="time_axis_col"
-                )
-            
-            with col2:
-                # Identifiez les colonnes qui pourraient contenir des catégories (texte)
-                category_cols = [col for col in df.columns if col != selected_time_col and 
-                                (df[col].dtype == 'object' or 
-                                df[col].dtype == 'category' or 
-                                df[col].nunique() <= 20)]
+                                        st.dataframe(country_flows.head(10), use_container_width=True)
+                                    
+                                    with col2:
+                                        st.markdown("""
+                                        <div style='font-family: "Orbitron", sans-serif; color: #00ff9d; 
+                                            text-shadow: 0 0 5px rgba(0, 255, 157, 0.5); margin-bottom: 10px;'>
+                                            TOP ISP CONNECTIONS
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                                        st.dataframe(isp_flows.head(10), use_container_width=True)
+                            else:
+                                st.error("No valid IP addresses with geolocation data found. Please check your IP columns.")
                 
-                if not category_cols:
-                    # Si pas de colonnes catégorielles, utilisez une sélection numérique
-                    category_cols = [col for col in df.columns if col != selected_time_col and
-                                    df[col].dtype in ['int64', 'float64'] and
-                                    df[col].nunique() <= 20]
-                
-                if category_cols:
-                    selected_group_col = st.selectbox(
-                        "Group By",
-                        category_cols,
-                        key="group_by_col"
-                    )
+                    st.markdown("</div>", unsafe_allow_html=True)
                     
-                    # Créer et afficher le graphique de zone empilée
-                    stacked_fig = create_stacked_area_chart(df, selected_time_col, selected_group_col)
-                    
-                    if stacked_fig:
-                        st.plotly_chart(stacked_fig, use_container_width=True)
-                    else:
-                        st.warning("Could not create stacked area chart with the selected columns")
                 else:
-                    st.warning("No suitable columns found for grouping. Please select a dataset with categorical columns.")
-            
-            st.markdown("</div>", unsafe_allow_html=True)
-                # IP port flow visualization
-        st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
-        st.markdown("<div class='panel-header'>IP-PORT FLOW ANALYSIS</div>", unsafe_allow_html=True)
+                    st.error("Unsupported file format. Please upload a CSV or Parquet file.")
+            except Exception as e:
+                st.error(f"Error loading data: {str(e)}")
 
-        # Check if we have IP and port columns
-        ip_cols = [col for col in df.columns if 'ip' in col.lower()]
-        port_cols = [col for col in df.columns if 'port' in col.lower()]
+    fig = px.histogram(
+    display_df, 
+    x=timestamp_col,
+    nbins=50,
+    color_discrete_sequence=["#ff5900", "#00f2ff"]  # Alternating colors
+)
 
-        if ip_cols and port_cols:
-            # Let user select columns
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                src_ip_col = st.selectbox(
-                    "Source IP",
-                    [col for col in ip_cols if 'src' in col.lower() or 'source' in col.lower()],
-                    key="src_ip_col_flow"
+    # Apply cyberpunk styling
+    fig = cyberpunk_plot_layout(fig, height=150)
+
+    st.plotly_chart(fig, use_container_width=True)
+        # Dans la section où vous créez le graphique empilé
+    st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
+    st.markdown("<div class='panel-header'>TEMPORAL EVENT DISTRIBUTION</div>", unsafe_allow_html=True)
+
+    # Initialiser les clés de session pour maintenir l'état entre les rafraîchissements
+    if "selected_time_col" not in st.session_state:
+        st.session_state.selected_time_col = timestamp_cols[0] if timestamp_cols else None
+    if "selected_group_col" not in st.session_state:
+        # Initialisation par défaut pour le group_by
+        category_cols = [col for col in df.columns if col != st.session_state.selected_time_col and 
+                        (df[col].dtype == 'object' or 
+                        df[col].dtype == 'category' or 
+                        df[col].nunique() <= 20)]
+        
+        if not category_cols:
+            category_cols = [col for col in df.columns if col != st.session_state.selected_time_col and
+                            df[col].dtype in ['int64', 'float64'] and
+                            df[col].nunique() <= 20]
+        
+        st.session_state.selected_group_col = category_cols[0] if category_cols else None
+        st.session_state.category_cols = category_cols
+
+    # Fonctions de callback pour mettre à jour les variables de session sans rafraîchir
+    def update_time_col():
+        st.session_state.selected_time_col = st.session_state.time_axis_col_select
+        
+    def update_group_col():
+        st.session_state.selected_group_col = st.session_state.group_by_col_select
+
+    # Interface utilisateur avec callbacks
+    col1, col2 = st.columns(2)
+
+    with col1:
+        selected_time_col = st.selectbox(
+            "Time Axis",
+            timestamp_cols,
+            index=timestamp_cols.index(st.session_state.selected_time_col) if st.session_state.selected_time_col in timestamp_cols else 0,
+            key="time_axis_col_select",
+            on_change=update_time_col
+        )
+
+    with col2:
+        # Utiliser les colonnes déjà identifiées stockées dans l'état de session
+        category_cols = st.session_state.category_cols
+        
+        if category_cols:
+            selected_group_col = st.selectbox(
+                "Group By",
+                category_cols,
+                index=category_cols.index(st.session_state.selected_group_col) if st.session_state.selected_group_col in category_cols else 0,
+                key="group_by_col_select",
+                on_change=update_group_col
+            )
+
+    # Utiliser les variables stockées dans la session pour créer le graphique
+    stacked_fig = create_stacked_area_chart(df, st.session_state.selected_time_col, st.session_state.selected_group_col)
+                
+    if stacked_fig:
+        st.plotly_chart(stacked_fig, use_container_width=True)
+    else:
+        st.warning("Could not create stacked area chart with the selected columns")
+        
+    st.markdown("</div>", unsafe_allow_html=True)
+            # IP port flow visualization
+    st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
+    st.markdown("<div class='panel-header'>IP-PORT FLOW ANALYSIS</div>", unsafe_allow_html=True)
+
+    # Check if we have IP and port columns
+    ip_cols = [col for col in df.columns if 'ip' in col.lower()]
+    port_cols = [col for col in df.columns if 'port' in col.lower()]
+
+    if ip_cols and port_cols:
+        # Let user select columns
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            src_ip_col = st.selectbox(
+                "Source IP",
+                [col for col in ip_cols if 'src' in col.lower() or 'source' in col.lower()],
+                key="src_ip_col_flow"
+            )
+        
+        with col2:
+            dst_ip_col = st.selectbox(
+                "Destination IP",
+                [col for col in ip_cols if 'dst' in col.lower() or 'dest' in col.lower()],
+                key="dst_ip_col_flow"
+            )
+        
+        col3, col4 = st.columns(2)
+        with col3:
+            dst_port_col = st.selectbox(
+                "Destination Port",
+                port_cols,
+                key="dst_port_col_flow"
+            )
+        
+        with col4:
+            # Get top destination IPs by count for selection
+            top_dst_ips = df[dst_ip_col].value_counts().nlargest(10).index.tolist()
+            selected_dst_ip = st.selectbox(
+                "Filter Destination IP",
+                ["All"] + top_dst_ips,
+                key="selected_dst_ip"
+            )
+        
+        # Add options row
+        col_opts1, col_opts2 = st.columns(2)
+        with col_opts1:
+            show_top10_only = st.checkbox("Show only top 10 source IPs by traffic volume", 
+                                        value=False, 
+                                        key="show_top10")
+        
+        # Create visualization
+        if st.button("🔄 Generate Flow Diagram", key="gen_flow_diagram"):
+            with st.spinner("Generating IP-Port flow diagram..."):
+                filter_ip = None if selected_dst_ip == "All" else selected_dst_ip
+                flow_fig = create_ip_port_flow_diagram(
+                    df, 
+                    src_ip_col, 
+                    dst_ip_col, 
+                    dst_port_col,
+                    filter_dst_ip=filter_ip,
+                    show_only_top10=show_top10_only
                 )
-            
-            with col2:
-                dst_ip_col = st.selectbox(
-                    "Destination IP",
-                    [col for col in ip_cols if 'dst' in col.lower() or 'dest' in col.lower()],
-                    key="dst_ip_col_flow"
-                )
-            
-            col3, col4 = st.columns(2)
-            with col3:
-                dst_port_col = st.selectbox(
-                    "Destination Port",
-                    port_cols,
-                    key="dst_port_col_flow"
-                )
-            
-            with col4:
-                # Get top destination IPs by count for selection
-                top_dst_ips = df[dst_ip_col].value_counts().nlargest(10).index.tolist()
-                selected_dst_ip = st.selectbox(
-                    "Filter Destination IP",
-                    ["All"] + top_dst_ips,
-                    key="selected_dst_ip"
-                )
-            
-            # Add options row
-            col_opts1, col_opts2 = st.columns(2)
-            with col_opts1:
-                show_top10_only = st.checkbox("Show only top 10 source IPs by traffic volume", 
-                                            value=False, 
-                                            key="show_top10")
-            
-            # Create visualization
-            if st.button("🔄 Generate Flow Diagram", key="gen_flow_diagram"):
-                with st.spinner("Generating IP-Port flow diagram..."):
-                    filter_ip = None if selected_dst_ip == "All" else selected_dst_ip
-                    flow_fig = create_ip_port_flow_diagram(
-                        df, 
-                        src_ip_col, 
-                        dst_ip_col, 
-                        dst_port_col,
-                        filter_dst_ip=filter_ip,
-                        show_only_top10=show_top10_only
-                    )
+                
+                if flow_fig:
+                    st.plotly_chart(flow_fig, use_container_width=True)
                     
-                    if flow_fig:
-                        st.plotly_chart(flow_fig, use_container_width=True)
-                        
-                        # Add explanatory text with cyberpunk styling
-                        st.markdown("""
-                        <div style='background-color: #181b24; padding: 15px; border-radius: 3px; 
-                            border: 1px solid rgba(255, 89, 0, 0.3); margin-top: 10px;'>
-                            <p style='margin: 0;'>
-                                <span style='color: #ff5900; font-weight: bold;'>NETWORK FLOW ANALYSIS:</span>
-                                This diagram visualizes network traffic patterns from source IPs (left) to destination ports (right).
-                                Line thickness represents connection frequency, and colors indicate different destination ports.
-                                <br><br>
-                                <span style='color: #00f2ff; font-size: 0.9rem;'>
-                                    Hover over connections to see detailed traffic counts. Source IPs are sorted by total connection volume.
-                                </span>
-                            </p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.error("Could not create flow diagram with selected columns")
-        else:
-            st.info("No IP address or port columns detected in this dataset.")
+                    # Add explanatory text with cyberpunk styling
+                    st.markdown("""
+                    <div style='background-color: #181b24; padding: 15px; border-radius: 3px; 
+                        border: 1px solid rgba(255, 89, 0, 0.3); margin-top: 10px;'>
+                        <p style='margin: 0;'>
+                            <span style='color: #ff5900; font-weight: bold;'>NETWORK FLOW ANALYSIS:</span>
+                            This diagram visualizes network traffic patterns from source IPs (left) to destination ports (right).
+                            Line thickness represents connection frequency, and colors indicate different destination ports.
+                            <br><br>
+                            <span style='color: #00f2ff; font-size: 0.9rem;'>
+                                Hover over connections to see detailed traffic counts. Source IPs are sorted by total connection volume.
+                            </span>
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.error("Could not create flow diagram with selected columns")
+    else:
+        st.info("No IP address or port columns detected in this dataset.")
 
-        st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
     with tab2:
         if 'df' in locals():
             st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
