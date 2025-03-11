@@ -337,10 +337,9 @@ def cyberpunk_plot_layout(fig, title=None, height=400):
                 pass
 
     return fig
-# Function to create a Kibana-like time selector
+# Function to create a time selector
 def time_selector(on_refresh_callback=None):
     """
-    Kibana-style time selector with refresh button
     Returns time range parameters and a boolean indicating if refresh was clicked
     """
     st.markdown("<div class='panel-header'>TIME RANGE</div>", unsafe_allow_html=True)
@@ -487,7 +486,7 @@ def time_selector(on_refresh_callback=None):
         time_unit = "custom"
         time_value = None
     
-    # Display the absolute time range in Kibana style with last refresh time
+    # Display the absolute time range 
     last_refresh = st.session_state.last_refresh_time.strftime('%Y-%m-%d %H:%M:%S')
     
     st.markdown(f"""
@@ -1351,7 +1350,7 @@ def main():
             categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
             datetime_cols = df.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
             
-            # Kibana Discover-like interface
+            
             st.markdown("<div class='panel-header' style='margin-top:15px;'>DISCOVER DATA</div>", unsafe_allow_html=True)
             
             # Search box (filtering)
@@ -1389,7 +1388,7 @@ def main():
             with col_types[3]:
                 create_metric_card("DATE", f"{len(datetime_cols)}")
             
-            # Field selection with expandable sections like Kibana
+           
             col1, col2 = st.columns([1, 3])
             with col1:
                 selected_field_type = st.radio("Field Types", 
@@ -1415,7 +1414,7 @@ def main():
                 if not selected_cols:
                     selected_cols = all_cols[:5] if len(all_cols) > 5 else all_cols
                 
-                # Show hit count like Kibana
+               
                 st.markdown(f"<div style='color:#00f2ff; margin-bottom:10px;'>Found <span style='font-size:1.2rem; font-weight:bold;'>{len(filtered_df)}</span> hits</div>", 
                             unsafe_allow_html=True)
                 
@@ -1443,7 +1442,7 @@ def main():
                 # Display data as interactive table with expandable rows
                 st.dataframe(page_data[selected_cols], use_container_width=True)
                 
-                # Expandable document view (Kibana-like)
+              
                 with st.expander("🔍 Detailed Document View", expanded=False):
                     row_to_view = st.slider("Select Document #", 
                                         min_value=1, 
@@ -1454,7 +1453,7 @@ def main():
                     if row_to_view < len(page_data):
                         doc = page_data.iloc[row_to_view].to_dict()
                         
-                        # Create a Kibana-like document view with JSON format
+                     
                         st.markdown("<div class='panel-header' style='margin-top:15px;'>DOCUMENT DETAILS</div>", 
                                 unsafe_allow_html=True)
                         
@@ -1478,7 +1477,7 @@ def main():
                         
                         st.markdown(doc_html, unsafe_allow_html=True)
             
-            # Data summary using metric cards like Kibana
+            # Data summary using metric cards
             st.markdown("<div class='panel-header' style='margin-top:15px;'>DATA INSIGHTS</div>", 
                         unsafe_allow_html=True)
             if not selected_cols:

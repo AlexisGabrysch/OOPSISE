@@ -52,7 +52,7 @@ Or online at [https://oopsise.streamlit.app/](https://oopsise.streamlit.app/)
 
 ### Uploading Data
 1. Navigate to the Dashboard page
-2. Use the file uploader to import your network data (CSV, Parquet, or Excel)
+2. Use the file uploader to import your network data (CSV, Parquet)
 3. The system will automatically detect column headers and data formats
 
 ### Time-based Analysis
@@ -64,7 +64,7 @@ Or online at [https://oopsise.streamlit.app/](https://oopsise.streamlit.app/)
 - **IP Geolocation Map**: Visualizes source and destination IPs on a world map
 - **Flow Analysis**: Shows connections between source IPs and destination ports
 - **Stacked Area Charts**: Displays traffic patterns over time
-- **Metric Cards**: Shows key statistics in Grafana-style panels
+- **Metric Cards**: Shows key statistics in panels
 
 ### Machine Learning Analysis
 The platform integrates CRISP-DM methodology for advanced analytics:
