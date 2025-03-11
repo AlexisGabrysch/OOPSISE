@@ -10,26 +10,48 @@ from sklearn.preprocessing import StandardScaler
 
 # 1. Importation des données
 
-data = "C:/Users/aoruezabal/Downloads/Untitled discover search(5).csv"
+data = "C:/Users/aoruezabal/Documents/GitHub/OOPSISE/app/data/iptables.parquet"
 
-df = pd.read_csv(data, sep=",")
+df = pd.read_parquet(data)
 
 class CrispDMAnalysis:
     def __init__(self, data_path):
-        self.df = pd.read_csv(data_path, sep=",")
+        self.df = pd.read_parquet(data_path)
+        
+        # Afficher les informations sur les colonnes pour le debug
+        print("\nColonnes disponibles:")
+        print(self.df.columns.tolist())
+        print("\nAperçu des données:")
+        print(self.df.head())
         
     def data_preparation(self):
+        # Conversion des colonnes en types appropriés
+        numeric_features = []
+        
+        # Conversion des colonnes numériques
+        for col in self.df.columns:
+            try:
+                self.df[col] = pd.to_numeric(self.df[col], errors='coerce')
+                if not self.df[col].isna().all():  # Vérifie si la colonne contient des données valides
+                    numeric_features.append(col)
+            except (ValueError, TypeError):
+                continue
+        
+        print("\nColonnes numériques utilisées:", numeric_features)
+        
         # Sélection des variables numériques
-        numeric_cols = self.df.select_dtypes(include=['float64', 'int64']).columns
-        X = self.df[numeric_cols]
+        X = self.df[numeric_features]
         
         # Imputation des valeurs manquantes
         imputer = SimpleImputer(strategy='mean')
         self.X_imputed = imputer.fit_transform(X)
         
-        # Standardisation avec StandardScaler
+        # Standardisation
         scaler = StandardScaler()
         self.X_scaled = scaler.fit_transform(self.X_imputed)
+        
+        # Sauvegarde des noms de colonnes
+        self.feature_names = numeric_features
         
         return self.X_scaled
         
@@ -112,7 +134,7 @@ class CrispDMAnalysis:
     def export_results(self):
         """Export des résultats vers Excel"""
         # Création d'une copie du DataFrame original
-        results_df = self.df.copy()
+        results_df = df.copy()
         
         # Ajout des colonnes pour les clusters et anomalies
         results_df['Cluster'] = self.clusters

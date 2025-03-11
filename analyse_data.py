@@ -1,14 +1,65 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+from sklearn.ensemble import IsolationForest
+import pandas as pd
 
 def run_analysis(df):
     class CrispDMAnalysis:
         def __init__(self, data):
             self.df = data
+            self.X = None
+            self.X_scaled = None
+            self.X_pca = None
+            self.pca = None
+            self.kmeans = None
+            self.clusters = None
+            self.isolation_forest = None
+            self.anomalies = None
+
+        def data_preparation(self):
+            # Sélection des colonnes numériques
+            numeric_cols = self.df.select_dtypes(include=[np.number]).columns
+            self.X = self.df[numeric_cols].fillna(0)
             
-        # ...existing code from CrispDMAnalysis class...
-        # (all methods remain the same, just remove file handling parts)
+            # Standardisation
+            scaler = StandardScaler()
+            self.X_scaled = scaler.fit_transform(self.X)
+            
+            # ACP
+            self.pca = PCA()
+            self.X_pca = self.pca.fit_transform(self.X_scaled)
+
+        def modeling(self):
+            # K-means clustering
+            self.kmeans = KMeans(n_clusters=3, random_state=42)
+            self.clusters = self.kmeans.fit_predict(self.X_pca)
+            
+            # Détection d'anomalies
+            self.isolation_forest = IsolationForest(random_state=42)
+            self.anomalies = self.isolation_forest.fit_predict(self.X_pca)
+
+        def export_results(self):
+            results = self.df.copy()
+            results['Cluster'] = self.clusters
+            results['Anomalie'] = self.anomalies
+            return results
+
+        def get_cluster_stats(self):
+            results = self.export_results()
+            stats = []
+            for cluster in np.unique(self.clusters):
+                cluster_data = results[results['Cluster'] == cluster]
+                stats.append({
+                    'Cluster': cluster,
+                    'Taille': len(cluster_data),
+                    'Pourcentage': len(cluster_data) / len(results) * 100,
+                    'Anomalies': (cluster_data['Anomalie'] == -1).sum()
+                })
+            return pd.DataFrame(stats)
 
     st.title("Analyse CRISP-DM des données")
 
@@ -71,6 +122,10 @@ def run_analysis(df):
             st.metric("Proportion d'anomalies", f"{(analysis.anomalies == -1).mean():.2%}")
         with col3:
             st.metric("Variance totale expliquée", f"{sum(analysis.pca.explained_variance_ratio_):.2%}")
+        
+        # Ajout des statistiques de clusters
+        st.write("### Statistiques des clusters")
+        st.dataframe(analysis.get_cluster_stats())
         
         # Export des résultats
         results = analysis.export_results()
