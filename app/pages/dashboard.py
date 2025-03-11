@@ -1,5 +1,5 @@
 import streamlit as st
-from pages.ressources.components import Navbar , apply_border_glitch_effect, apply_custom_css, create_ip_map, extract_ips, create_ip_port_flow_diagram
+from pages.ressources.components import Navbar , apply_border_glitch_effect, apply_custom_css, create_ip_map, extract_ips, create_ip_port_flow_diagram, footer
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
@@ -2318,5 +2318,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
         else:
             st.info("Please upload a file in the Dashboard tab first")
+
+    footer()
 if __name__ == "__main__":
     main()

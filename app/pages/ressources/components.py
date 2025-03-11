@@ -6,6 +6,19 @@ import requests
 import ipaddress
 import socket
 
+def footer():
+     # Footer avec crédits et liens
+    return st.markdown("""
+    <div style='margin-top: 30px; text-align: center;'>
+        <div style='height: 1px; background: linear-gradient(90deg, rgba(0,0,0,0), rgba(0, 242, 255, 0.5), rgba(0,0,0,0)); 
+            margin: 20px 0;'></div>
+        <div style='font-family: monospace; color: rgba(255,255,255,0.5); font-size: 0.8rem;'>
+            Projet OOPSISE © 2025 | Développé avec Streamlit | 
+            <a href="https://github.com/alexisgabrysch/OOPSISE" target="_blank" style='color: #00f2ff; text-decoration: none;'>GitHub</a>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 
 def parse_timestamp(df, timestamp_col):
     """Parse timestamp column with improved handling for multiple formats"""
