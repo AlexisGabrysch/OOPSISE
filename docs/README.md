@@ -42,7 +42,7 @@ cd OOPSISE
 docker build -t oopsise .
 
 # Run the Docker container
-docker run -p 8501:8501 oopsise
+docker run -itd -p 8501:8501 oopsise
 ```
 
 The application will be available at [http://localhost:8501](http://localhost:8501)
