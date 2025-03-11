@@ -1,463 +1,12 @@
 import streamlit as st
-from pages.ressources.components import Navbar , apply_border_glitch_effect, apply_custom_css
+from pages.ressources.components import Navbar , apply_border_glitch_effect, apply_custom_css, create_ip_map, extract_ips, create_ip_port_flow_diagram
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 import numpy as np
-import ipaddress
-from urllib.request import urlretrieve
-import requests
 import datetime
 from datetime import timedelta
-import socket                                                                 
-                                                                                
-def get_ip_location(ip):
-    """Get location info for an IP address using ip-api.com"""
-    try:
-        # Check if the IP is valid
-        ipaddress.ip_address(ip)
-        
-        # Skip private IPs
-        if ipaddress.ip_address(ip).is_private:
-            return None
-            
-        # Try to resolve domain names to IP addresses
-        try:
-            if not ip[0].isdigit():
-                ip = socket.gethostbyname(ip)
-        except:
-            pass
-            
-        # Look up IP using ip-api.com (no API key needed)
-        url = f'http://ip-api.com/json/{ip}'
-        response = requests.get(url, timeout=5)
-        
-        # Check if response is successful
-        if response.status_code != 200:
-            st.warning(f"API error for IP {ip}: Status code {response.status_code}")
-            return None
-            
-        location_info = response.json()
-        
-        # Check if response contains error
-        if location_info.get('status') == 'fail':
-            st.warning(f"API error for IP {ip}: {location_info.get('message', 'Unknown error')}")
-            return None
-        
-        # Return formatted location data
-        return {
-            'ip': ip,
-            'city': location_info.get('city', 'Unknown'),
-            'country': location_info.get('country', 'Unknown'),
-            'latitude': location_info.get('lat', 0),
-            'longitude': location_info.get('lon', 0),
-            'region': location_info.get('regionName', 'Unknown'),
-            'continent': 'Unknown',  # ip-api doesn't provide continent directly
-            'country_code': location_info.get('countryCode', 'Unknown'),
-            'continent_code': 'Unknown',  # ip-api doesn't provide continent code directly
-            'zip': location_info.get('zip', 'Unknown'),
-            'isp': location_info.get('isp', 'Unknown'),
-            'org': location_info.get('org', 'Unknown')
-        }
-    except Exception as e:
-        st.warning(f"Error processing IP {ip}: {str(e)}")
-        return None
-def extract_ips(df):
-    """Extract IP addresses from dataframe and get their locations with improved error handling"""
-    ip_src_col = None
-    ip_dst_col = None
-    
-    # Try to find IP source and destination columns
-    ip_columns = []
-    for col in df.columns:
-        col_lower = col.lower()
-        if 'ip' in col_lower:
-            ip_columns.append(col)
-            if 'src' in col_lower or 'source' in col_lower:
-                ip_src_col = col
-            elif 'dst' in col_lower or 'dest' in col_lower or 'destination' in col_lower:
-                ip_dst_col = col
-    
-    # If no specific src/dst columns found, use the first two IP columns
-    if not ip_src_col and len(ip_columns) > 0:
-        ip_src_col = ip_columns[0]
-    if not ip_dst_col and len(ip_columns) > 1:
-        ip_dst_col = ip_columns[1]
-        
-    
-    # Additional logging for debugging
-    st.info(f"Using {ip_src_col} as source IP and {ip_dst_col if ip_dst_col else 'no destination column'}")
-    
-    # Process IP source addresses
-    src_locations = []
-    if ip_src_col:
-        # Limit the number of IPs to process to avoid API rate limiting
-        unique_ips = df[ip_src_col].astype(str).dropna().unique()
-        unique_ips = [ip for ip in unique_ips[:50] if str(ip).strip() != '' and str(ip).lower() != 'nan']
-        
-        if len(unique_ips) == 0:
-            st.warning(f"No valid source IPs found in column {ip_src_col}")
-        else:
-            # Create a progress bar
-            try:
-                progress_text = f"Processing {len(unique_ips)} source IPs..."
-                progress_bar = st.progress(0, text=progress_text)
-                
-                for i, ip in enumerate(unique_ips):
-                    try:
-                        location = get_ip_location(ip)
-                        if location:
-                            src_locations.append(location)
-                    except Exception as e:
-                        st.warning(f"Error processing source IP {ip}: {str(e)}")
-                    
-                    # Update progress
-                    progress_bar.progress((i + 1) / len(unique_ips), 
-                                        text=f"Processing source IPs: {i+1}/{len(unique_ips)}")
-                    
-                # Clear the progress bar when done
-                progress_bar.empty()
-            except Exception as e:
-                st.error(f"Error in progress tracking: {str(e)}")
-    
-    # Process IP destination addresses or add demo destination
-    dst_locations = []
-    if ip_dst_col:
-        # Limit the number of IPs to process to avoid API rate limiting
-        unique_ips = df[ip_dst_col].astype(str).dropna().unique()
-        unique_ips = [ip for ip in unique_ips[:50] if str(ip).strip() != '' and str(ip).lower() != 'nan']
-        
-        if len(unique_ips) == 0:
-            st.warning(f"No valid destination IPs found in column {ip_dst_col}")
-        else:
-            # Create a progress bar
-            try:
-                progress_text = f"Processing {len(unique_ips)} destination IPs..."
-                progress_bar = st.progress(0, text=progress_text)
-                
-                for i, ip in enumerate(unique_ips):
-                    try:
-                        location = get_ip_location(ip)
-                        if location:
-                            dst_locations.append(location)
-                    except Exception as e:
-                        st.warning(f"Error processing destination IP {ip}: {str(e)}")
-                    
-                    # Update progress
-                    progress_bar.progress((i + 1) / len(unique_ips), 
-                                        text=f"Processing destination IPs: {i+1}/{len(unique_ips)}")
-                    
-                # Clear the progress bar when done
-                progress_bar.empty()
-            except Exception as e:
-                st.error(f"Error in progress tracking: {str(e)}")
-    
-    # SOLUTION: Generate demo destination location for Lyon, France if we don't have destinations
-    if not dst_locations or len(dst_locations) == 0:
-        st.info("Adding demo destination location in Lyon, France for visualization")
-        # Add a destination in Lyon, France
-        demo_destination = {
-            'ip': '169.254.1.1',  # Placeholder IP
-            'city': 'Lyon',
-            'country': 'France',
-            'latitude': 45.7589,
-            'longitude': 4.8414,
-            'region': 'Rhône-Alpes',
-            'continent': 'Europe',
-            'country_code': 'FR',
-            'continent_code': 'EU',
-            'zip': '69000',
-            'isp': 'Demo ISP',
-            'org': 'Demo Organization'
-        }
-        dst_locations = [demo_destination]
-    
-    # Generate flows between source and destination
-    flows = []
-    if src_locations and dst_locations:
-        try:
-            # Determine if we should use actual flows from data or just create demo flows
-            if ip_src_col and ip_dst_col:
-                # Créer des dictionnaires pour recherche rapide
-                src_ip_map = {loc['ip']: loc for loc in src_locations}
-                dst_ip_map = {loc['ip']: loc for loc in dst_locations}
-                
-                # Group by src-dst pair and count occurrences
-                try:
-                    flow_counts = df.groupby([ip_src_col, ip_dst_col]).size().reset_index()
-                    flow_counts.columns = [ip_src_col, ip_dst_col, 'count']
-                    
-                    # Limiter à 100 flux maximum pour de meilleures performances
-                    if len(flow_counts) > 100:
-                        flow_counts = flow_counts.nlargest(100, 'count')
-                    
-                    # Get locations for each flow
-                    for _, row in flow_counts.iterrows():
-                        src_ip = str(row[ip_src_col])
-                        dst_ip = str(row[ip_dst_col])
-                        
-                        if src_ip.lower() == 'nan' or dst_ip.lower() == 'nan':
-                            continue
-                        
-                        if src_ip in src_ip_map and dst_ip in dst_ip_map:
-                            src_loc = src_ip_map[src_ip]
-                            dst_loc = dst_ip_map[dst_ip]
-                            
-                            # S'assurer que toutes les données sont valides
-                            if (src_loc.get('latitude') is not None and 
-                                src_loc.get('longitude') is not None and 
-                                dst_loc.get('latitude') is not None and 
-                                dst_loc.get('longitude') is not None):
-                                
-                                flow = {
-                                    'src_ip': src_ip,
-                                    'dst_ip': dst_ip,
-                                    'src_lat': float(src_loc['latitude']),
-                                    'src_lon': float(src_loc['longitude']),
-                                    'dst_lat': float(dst_loc['latitude']),
-                                    'dst_lon': float(dst_loc['longitude']),
-                                    'count': int(row['count']),
-                                    'src_country': src_loc.get('country', 'Unknown'),
-                                    'dst_country': dst_loc.get('country', 'Unknown'),
-                                    'src_city': src_loc.get('city', 'Unknown'),
-                                    'dst_city': dst_loc.get('city', 'Unknown'),
-                                    'src_isp': src_loc.get('isp', 'Unknown'),
-                                    'dst_isp': dst_loc.get('isp', 'Unknown'),
-                                    'src_org': src_loc.get('org', 'Unknown'),
-                                    'dst_org': dst_loc.get('org', 'Unknown'),
-                                }
-                                flows.append(flow)
-                except Exception as e:
-                    st.warning(f"Could not generate flows from data: {str(e)}")
-            
-            # Si nous n'avons pas assez de flux, créer des flux de démonstration
-            # entre toutes nos sources et notre destination Lyon
-            if len(flows) == 0 and len(src_locations) > 0:
-                st.info("Creating demonstration flows to Lyon, France")
-                
-                # Get our Lyon destination
-                lyon_dest = dst_locations[0]
-                
-                # Create a demo flow from each source to Lyon
-                for src_loc in src_locations:
-                    flow = {
-                        'src_ip': src_loc['ip'],
-                        'dst_ip': lyon_dest['ip'],
-                        'src_lat': float(src_loc['latitude']),
-                        'src_lon': float(src_loc['longitude']),
-                        'dst_lat': float(lyon_dest['latitude']),
-                        'dst_lon': float(lyon_dest['longitude']),
-                        'count': 1,  # Example count
-                        'src_country': src_loc.get('country', 'Unknown'),
-                        'dst_country': lyon_dest.get('country', 'France'),
-                        'src_city': src_loc.get('city', 'Unknown'),
-                        'dst_city': lyon_dest.get('city', 'Lyon'),
-                        'src_isp': src_loc.get('isp', 'Unknown'),
-                        'dst_isp': lyon_dest.get('isp', 'Demo ISP'),
-                        'src_org': src_loc.get('org', 'Unknown'),
-                        'dst_org': lyon_dest.get('org', 'Demo Organization'),
-                    }
-                    flows.append(flow)
-            
-            # Additional logging
-            st.success(f"Generated {len(flows)} attack flow paths")
-            
-        except Exception as e:
-            st.error(f"Error generating flows: {str(e)}")
-            import traceback
-            st.error(traceback.format_exc())
-    else:
-        st.warning("Need both source and destination locations to create flow lines")
-    
-    return src_locations, dst_locations, flows
-def create_ip_map(src_locations, dst_locations, flows):
-    """Create an interactive map showing IP locations and flows with optimized performance"""
-    
-    # Create base map with cyberpunk styling but less demanding effects
-    fig = go.Figure()
-    
-    # Add source markers with simplified styling
-    if src_locations:
-        src_df = pd.DataFrame(src_locations)
-        fig.add_trace(go.Scattergeo(
-            lon=src_df['longitude'],
-            lat=src_df['latitude'],
-            text=src_df.apply(lambda row: (
-                f"Source IP: {row['ip']}<br>" +
-                f"Location: {row['city']}, {row['region']}, {row['country']}<br>" +
-                f"ISP: {row.get('isp', 'Unknown')}<br>" +
-                f"Organization: {row.get('org', 'Unknown')}<br>" +
-                f"Coordinates: {row['latitude']:.4f}, {row['longitude']:.4f}"
-            ), axis=1),
-            mode='markers',
-            marker=dict(
-                size=10,
-                color='rgba(0, 255, 157, 1.0)',
-                line=dict(width=1, color='rgba(0, 255, 157, 0.5)'),
-                symbol='circle',
-                opacity=0.9,
-            ),
-            name='Source IPs',
-            hoverinfo='text'
-        ))
-    
-    # Add destination markers with simplified styling
-    if dst_locations:
-        dst_df = pd.DataFrame(dst_locations)
-        fig.add_trace(go.Scattergeo(
-            lon=dst_df['longitude'],
-            lat=dst_df['latitude'],
-            text=dst_df.apply(lambda row: (
-                f"Destination IP: {row['ip']}<br>" +
-                f"Location: {row['city']}, {row['region']}, {row['country']}<br>" +
-                f"ISP: {row.get('isp', 'Unknown')}<br>" +
-                f"Organization: {row.get('org', 'Unknown')}<br>" +
-                f"Coordinates: {row['latitude']:.4f}, {row['longitude']:.4f}"
-            ), axis=1),
-            mode='markers',
-            marker=dict(
-                size=10,
-                color='rgba(255, 91, 121, 1.0)',
-                line=dict(width=1, color='rgba(255, 91, 121, 0.5)'),
-                symbol='diamond',
-                opacity=0.9,
-            ),
-            name='Destination IPs',
-            hoverinfo='text'
-        ))
-    
-    # Draw optimized flow lines without curves or glowing effects
-    # IMPORTANT FIX: Use a different approach for drawing lines to prevent ricochets
-    if flows:
-        # Limit number of flows to improve performance
-        max_flows = min(50, len(flows))
-        flows_to_display = flows[:max_flows]
-        
-        # For each flow, draw a direct line (not curved)
-        for flow in flows_to_display:
-            # Get source and destination coordinates
-            src_lon = flow['src_lon']
-            src_lat = flow['src_lat']
-            dst_lon = flow['dst_lon']
-            dst_lat = flow['dst_lat']
-            
-            # CRITICAL FIX: Prevent ricocheting by handling the 180° meridian crossing
-            lon_diff = abs(src_lon - dst_lon)
-            
-            # If the difference is greater than 180°, we're probably crossing the meridian
-            if lon_diff > 180:
-                # Skip this flow as it would cause a ricochet effect
-                continue
-            
-            # Add a simplified line trace (direct path without curves)
-            fig.add_trace(go.Scattergeo(
-                lon=[src_lon, dst_lon],
-                lat=[src_lat, dst_lat],
-                mode='lines',
-                line=dict(
-                    width=1.5,  # Reduce line width for better performance
-                    color='rgba(0, 242, 255, 0.8)',
-                ),
-                opacity=0.8,
-                text=(
-                    f"Flow: {flow.get('src_ip', 'Unknown')} → {flow.get('dst_ip', 'Unknown')}<br>" +
-                    f"Count: {flow.get('count', 'N/A')}<br>" +
-                    f"From: {flow.get('src_city', 'Unknown')}, {flow.get('src_country', 'Unknown')}<br>" +
-                    f"To: {flow.get('dst_city', 'Unknown')}, {flow.get('dst_country', 'Unknown')}"
-                ),
-                hoverinfo='text',
-                showlegend=False
-            ))
-    
-    # Update layout with simplified styling
-    fig.update_layout(
-        template="plotly_dark",
-        geo=dict(
-            showland=True,
-            landcolor='rgb(10, 15, 25)',
-            countrycolor='rgba(30, 50, 70, 1.0)',
-            coastlinecolor='rgba(0, 242, 255, 0.5)',
-            countrywidth=0.5,
-            coastlinewidth=0.5,
-            showocean=True,
-            oceancolor='rgb(5, 10, 20)',
-            showlakes=False,
-            showrivers=False,
-            showframe=False,
-            showcountries=True,
-            # IMPORTANT: Use orthographic projection to avoid distortion at high latitudes
-            projection_type='orthographic',  # Changed from natural earth for better line paths
-            projection=dict(
-                rotation=dict(lon=-10, lat=25, roll=0)  # Center view for better visibility
-            ),
-            bgcolor='rgba(0,0,0,0)',
-            resolution=50,
-        ),
-        paper_bgcolor='rgba(10, 15, 25, 0.95)',
-        plot_bgcolor='rgba(10, 15, 25, 0.95)',
-        margin=dict(l=0, r=0, t=10, b=10),
-        height=550,  # Slightly reduced height for better performance
-        legend=dict(
-            x=0.01,
-            y=0.99,
-            bgcolor='rgba(10, 15, 25, 0.7)',
-            bordercolor=None,  # Remove border
-            font=dict(size=10, color="#00f2ff")
-        ),
-        # Add simple buttons to change projection for better exploration
-        updatemenus=[
-            dict(
-                type="buttons",
-                direction="right",
-                buttons=[
-                    dict(
-                        args=[{"geo.projection.type": "orthographic", 
-                               "geo.projection.rotation": {"lon": -10, "lat": 25, "roll": 0}}],
-                        label="Globe",
-                        method="relayout"
-                    ),
-                    dict(
-                        args=[{"geo.projection.type": "natural earth", 
-                               "geo.center": {"lon": 0, "lat": 0}}],
-                        label="Flat",
-                        method="relayout"
-                    ),
-                    dict(
-                        args=[{"geo.projection.type": "mercator", 
-                               "geo.center": {"lon": 0, "lat": 0}}],
-                        label="Mercator",
-                        method="relayout"
-                    )
-                ],
-                pad={"r": 10, "t": 10},
-                showactive=True,
-                x=0.1,
-                y=1.1,
-                xanchor="right",
-                yanchor="top",
-                bgcolor="rgba(10, 15, 25, 0.7)",
-            )
-        ]
-    )
-    
-    # IMPORTANT: Remove the border shapes that cause rendering issues
-    # Instead, add a simple title with cyberpunk styling
-    fig.update_layout(
-        title=dict(
-            text="CYBERPUNK ATTACK FLOW MAP",
-            font=dict(
-                family="Orbitron, monospace",
-                size=16,
-                color="#00f2ff"
-            ),
-            x=0.5,
-            y=0.02,
-            xanchor='center',
-            yanchor='bottom'
-        )
-    )
-    
-    return fig
+
 st.set_page_config(page_title="Dashboard", page_icon="📊", layout="wide")
 
 @st.cache_data(ttl=3600) # Cache data for one hour
@@ -468,7 +17,7 @@ def cached_load_data(uploaded_file):
     if file_extension == 'csv':
         # Lire les premières lignes pour vérifier si elles contiennent un header
         try:
-            # Lire quelques lignes pour l'analyse
+            # Lire quelques lignes pour l'analyse - replaced polars with pandas
             sample = pd.read_csv(uploaded_file, nrows=5)
             uploaded_file.seek(0)  # Réinitialiser le pointeur du fichier
             
@@ -1044,283 +593,6 @@ def detect_timestamp_cols(df):
     
     return timestamp_cols
 
-def create_ip_port_flow_diagram(df, src_ip_col, dst_ip_col, dst_port_col, filter_dst_ip=None, show_only_top10=False):
-    """Create a cyberpunk-styled network flow diagram showing source IPs to destination ports"""
-    
-    # Validate columns exist in dataframe
-    if not all(col in df.columns for col in [src_ip_col, dst_ip_col, dst_port_col]):
-        st.error(f"Required columns not found in dataframe")
-        return None
-        
-    # Filter by destination IP if specified
-    if filter_dst_ip:
-        flow_df = df[df[dst_ip_col] == filter_dst_ip].copy()
-        title = f"Network Flows to {filter_dst_ip}"
-    else:
-        # Take a sample to avoid overcrowding (if no specific dst IP)
-        # Get top destination IPs by count
-        top_dst_ips = df[dst_ip_col].value_counts().nlargest(1).index.tolist()
-        if top_dst_ips:
-            flow_df = df[df[dst_ip_col] == top_dst_ips[0]].copy()
-            title = f"Network Flows to {top_dst_ips[0]}"
-        else:
-            flow_df = df.copy()
-            title = "Network Flows"
-
-    
-    # Prepare data - group by source IP and destination port
-    flow_counts = flow_df.groupby([src_ip_col, dst_port_col]).size().reset_index()
-    flow_counts.columns = [src_ip_col, dst_port_col, 'count']
-    
-    # Convert port numbers to strings
-    flow_counts[dst_port_col] = flow_counts[dst_port_col].astype(str)
-    
-    # Calculate total count per source IP for sorting
-    src_ip_totals = flow_counts.groupby(src_ip_col)['count'].sum().reset_index()
-    src_ip_totals = src_ip_totals.sort_values('count', ascending=False)
-    print(src_ip_totals)
-    
-    # Filter to top 10 source IPs by count if requested
-    if show_only_top10:
-        top_srcs = src_ip_totals.nlargest(10, 'count')[src_ip_col].tolist()
-        flow_counts = flow_counts[flow_counts[src_ip_col].isin(top_srcs)]
-    
-    # Get unique source IPs and destination ports
-    unique_srcs = src_ip_totals[src_ip_col].tolist() # Already sorted by count
-    unique_ports = flow_counts[dst_port_col].unique()
-    
-    # Limit to top 15 sources and top 20 ports by count if too many (and not already limited)
-    if len(unique_srcs) > 15 and not show_only_top10:
-        unique_srcs = unique_srcs[:15]
-        flow_counts = flow_counts[flow_counts[src_ip_col].isin(unique_srcs)]
-        
-    if len(unique_ports) > 20:
-        top_ports = flow_counts.groupby(dst_port_col)['count'].sum().nlargest(20).index.tolist()
-        flow_counts = flow_counts[flow_counts[dst_port_col].isin(top_ports)]
-        unique_ports = top_ports
-    
-    # Create position mappings for nodes
-    # Source IPs on left (sorted by count from top to bottom)
-    src_positions = {ip: (0, i) for i, ip in enumerate(unique_srcs)}
-    port_positions = {port: (1, i) for i, port in enumerate(unique_ports)}
-    
-    # Define cyberpunk color palette
-    cyberpunk_colors = [
-        '#00f2ff',  # Cyan
-        '#ff5900',  # Orange
-        '#00ff9d',  # Neon green
-        '#ff3864',  # Hot pink
-        '#a742f5',  # Purple
-        '#ffb000',  # Yellow
-        '#36a2eb',  # Blue
-        '#ff6384',  # Salmon
-        '#29c7ac',  # Teal
-        '#ff9e00',  # Amber
-        '#00b8d9',  # Light blue
-        '#ff5bff',  # Magenta
-        '#7dff00',  # Lime
-        '#8257e5',  # Indigo
-        '#ffc107',  # Gold
-        '#00d4b1',  # Turquoise
-        '#e052a0',  # Pink
-        '#00d0ff',  # Sky blue
-        '#ff4081',  # Rose
-        '#9c27b0'   # Violet
-    ]
-    
-    # Create color mapping for ports
-    color_map = {port: cyberpunk_colors[i % len(cyberpunk_colors)] for i, port in enumerate(unique_ports)}
-    
-    # Create the figure
-    fig = go.Figure()
-    
-    # Add invisible scatter traces for source IPs (left side)
-    fig.add_trace(go.Scatter(
-        x=[0] * len(src_positions),
-        y=list(range(len(src_positions))),
-        mode='markers',
-        marker=dict(
-            color='rgba(0, 242, 255, 0.9)',
-            size=12,
-            line=dict(color='rgba(0, 242, 255, 0.5)', width=1),
-        ),
-        text=list(src_positions.keys()),
-        hoverinfo='text',
-        name='Source IPs'
-    ))
-    
-    # Add invisible scatter traces for destination ports (right side)
-    for i, port in enumerate(unique_ports):
-        # Get color for this port
-        color = color_map[port]
-        
-        fig.add_trace(go.Scatter(
-            x=[1],
-            y=[i],
-            mode='markers',
-            marker=dict(
-                color=color,
-                size=12,
-                line=dict(color='rgba(255, 255, 255, 0.5)', width=1),
-                symbol='square',
-            ),
-            text=[f"Port: {port}"],
-            hoverinfo='text',
-            name=f'Port {port}'
-        ))
-    
-    # Add sankey-like flow lines for each connection
-    for _, row in flow_counts.iterrows():
-        src_ip = row[src_ip_col]
-        dst_port = row[dst_port_col]
-        count = row['count']
-        
-        # Skip if source IP is not in our position mapping (might have been filtered)
-        if src_ip not in src_positions:
-            continue
-        
-        # Get positions
-        src_pos = src_positions[src_ip]
-        dst_pos = port_positions[dst_port]
-        
-        # Calculate line width based on count (minimum 1, maximum 10)
-        max_count = flow_counts['count'].max()
-        line_width = 1 + 9 * (count / max_count) if max_count > 0 else 1
-        
-        # Get color for this port
-        line_color = color_map[dst_port]
-        
-        # Add line connecting source IP to destination port
-        fig.add_trace(go.Scatter(
-            x=[src_pos[0], dst_pos[0]],
-            y=[src_pos[1], dst_pos[1]],
-            mode='lines',
-            line=dict(
-                width=line_width,
-                color=f'rgba{tuple(int(line_color.lstrip("#")[i:i+2], 16) for i in (0, 2, 4)) + (0.6,)}'
-            ),
-            text=f"{src_ip} → Port {dst_port}<br>Count: {count}",
-            hoverinfo='text',
-            showlegend=False
-        ))
-    
-    # Add source IP labels on left side with count info
-    for ip, (x, y) in src_positions.items():
-        # Get total count for this IP
-        total_count = src_ip_totals[src_ip_totals[src_ip_col] == ip]['count'].values[0]
-        
-        fig.add_annotation(
-            x=x - 0.05,
-            y=y,
-            text=f"{ip} ({total_count})",  # Add count to label
-            showarrow=False,
-            xanchor='right',
-            font=dict(color='#00f2ff', size=10),
-        )
-    
-    # Add port labels on right side
-    for port, (x, y) in port_positions.items():
-        # Get total count for this port
-        port_total = flow_counts[flow_counts[dst_port_col] == port]['count'].sum()
-        
-        fig.add_annotation(
-            x=x + 0.05,
-            y=y,
-            text=f"Port {port} ({port_total})",  # Add count to label
-            showarrow=False,
-            xanchor='left',
-            font=dict(color=color_map[port], size=10),
-        )
-    
-    # Update layout with cyberpunk styling
-    fig.update_layout(
-        title=dict(
-            text=title,
-            font=dict(size=16, color='#00f2ff', family='Orbitron'),
-            x=0.5,
-        ),
-        template="plotly_dark",
-        plot_bgcolor='rgba(23, 28, 38, 0.8)',
-        paper_bgcolor='rgba(23, 28, 38, 0.8)', 
-        margin=dict(l=50, r=50, t=50, b=20),
-        height=max(400, len(unique_srcs) * 25),  # Adjust height based on number of points
-        xaxis=dict(
-            showgrid=False,
-            zeroline=False,
-            showticklabels=False,
-            range=[-0.1, 1.1],  # Add padding
-        ),
-        yaxis=dict(
-            showgrid=False,
-            zeroline=False,
-            showticklabels=False,
-            range=[-1, max(len(unique_srcs), len(unique_ports))],  # Add padding
-        ),
-        showlegend=False,
-        hovermode='closest',
-    )
-    
-    # Add glowing effect with shapes
-    fig.update_layout(
-        shapes=[
-            # Bottom border with gradient
-            dict(
-                type="rect",
-                xref="paper", yref="paper",
-                x0=0, y0=0, x1=1, y1=0.02,
-                line_width=0,
-                fillcolor="rgba(0, 242, 255, 0.3)",
-                layer="below"
-            ),
-            # Top border with gradient
-            dict(
-                type="rect",
-                xref="paper", yref="paper",
-                x0=0, y0=0.98, x1=1, y1=1,
-                line_width=0,
-                fillcolor="rgba(255, 89, 0, 0.3)",
-                layer="below"
-            )
-        ]
-    )
-    
-    # Add a grid effect in the background
-    fig.add_shape(
-        type="rect",
-        xref="paper", yref="paper",
-        x0=0, y0=0, x1=1, y1=1,
-        line=dict(color="rgba(0,0,0,0)"),
-        layer="below",
-        fillcolor="rgba(0,0,0,0)",
-        opacity=0.1,
-    )
-    
-    # Add header labels
-    fig.add_annotation(
-        x=0,
-        y=-0.5,
-        text="SOURCE IPs (sorted by count)",
-        showarrow=False,
-        xanchor='center',
-        font=dict(color='#00f2ff', size=12),
-        xref='paper',
-        yref='paper'
-    )
-    
-    fig.add_annotation(
-        x=1,
-        y=-0.5,
-        text="DESTINATION PORTS",
-        showarrow=False,
-        xanchor='center',
-        font=dict(color='#ff5900', size=12),
-        xref='paper',
-        yref='paper'
-    )
-    
-    return fig
-
-
 def parse_timestamp(df, timestamp_col):
     """Parse timestamp column with improved handling for multiple formats"""
     # Create a copy to avoid warnings about modifying the original dataframe
@@ -1559,7 +831,7 @@ def main():
     </style>
     """, unsafe_allow_html=True)
     # Create tabs for different sections (like Grafana)
-    tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🔍 Exploration", "⚙️ Settings"])
+    tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🔍 Exploration", "⚙️ Detection Analysis"])
     
     with tab1:
         # File upload section with cyberpunk styling
@@ -1906,167 +1178,167 @@ def main():
             except Exception as e:
                 st.error(f"Error loading data: {str(e)}")
 
-    fig = px.histogram(
-    display_df, 
-    x=timestamp_col,
-    nbins=50,
-    color_discrete_sequence=["#ff5900", "#00f2ff"]  # Alternating colors
-)
-
-    # Apply cyberpunk styling
-    fig = cyberpunk_plot_layout(fig, height=150)
-
-    st.plotly_chart(fig, use_container_width=True)
-        # Dans la section où vous créez le graphique empilé
-    st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
-    st.markdown("<div class='panel-header'>TEMPORAL EVENT DISTRIBUTION</div>", unsafe_allow_html=True)
-
-    # Initialiser les clés de session pour maintenir l'état entre les rafraîchissements
-    if "selected_time_col" not in st.session_state:
-        st.session_state.selected_time_col = timestamp_cols[0] if timestamp_cols else None
-    if "selected_group_col" not in st.session_state:
-        # Initialisation par défaut pour le group_by
-        category_cols = [col for col in df.columns if col != st.session_state.selected_time_col and 
-                        (df[col].dtype == 'object' or 
-                        df[col].dtype == 'category' or 
-                        df[col].nunique() <= 20)]
-        
-        if not category_cols:
-            category_cols = [col for col in df.columns if col != st.session_state.selected_time_col and
-                            df[col].dtype in ['int64', 'float64'] and
-                            df[col].nunique() <= 20]
-        
-        st.session_state.selected_group_col = category_cols[0] if category_cols else None
-        st.session_state.category_cols = category_cols
-
-    # Fonctions de callback pour mettre à jour les variables de session sans rafraîchir
-    def update_time_col():
-        st.session_state.selected_time_col = st.session_state.time_axis_col_select
-        
-    def update_group_col():
-        st.session_state.selected_group_col = st.session_state.group_by_col_select
-
-    # Interface utilisateur avec callbacks
-    col1, col2 = st.columns(2)
-
-    with col1:
-        selected_time_col = st.selectbox(
-            "Time Axis",
-            timestamp_cols,
-            index=timestamp_cols.index(st.session_state.selected_time_col) if st.session_state.selected_time_col in timestamp_cols else 0,
-            key="time_axis_col_select",
-            on_change=update_time_col
+            fig = px.histogram(
+            display_df, 
+            x=timestamp_col,
+            nbins=50,
+            color_discrete_sequence=["#ff5900", "#00f2ff"]  # Alternating colors
         )
 
-    with col2:
-        # Utiliser les colonnes déjà identifiées stockées dans l'état de session
-        category_cols = st.session_state.category_cols
-        
-        if category_cols:
-            selected_group_col = st.selectbox(
-                "Group By",
-                category_cols,
-                index=category_cols.index(st.session_state.selected_group_col) if st.session_state.selected_group_col in category_cols else 0,
-                key="group_by_col_select",
-                on_change=update_group_col
-            )
+            # Apply cyberpunk styling
+            fig = cyberpunk_plot_layout(fig, height=150)
 
-    # Utiliser les variables stockées dans la session pour créer le graphique
-    stacked_fig = create_stacked_area_chart(df, st.session_state.selected_time_col, st.session_state.selected_group_col)
+            st.plotly_chart(fig, use_container_width=True)
+                # Dans la section où vous créez le graphique empilé
+            st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
+            st.markdown("<div class='panel-header'>TEMPORAL EVENT DISTRIBUTION</div>", unsafe_allow_html=True)
+
+            # Initialiser les clés de session pour maintenir l'état entre les rafraîchissements
+            if "selected_time_col" not in st.session_state:
+                st.session_state.selected_time_col = timestamp_cols[0] if timestamp_cols else None
+            if "selected_group_col" not in st.session_state:
+                # Initialisation par défaut pour le group_by
+                category_cols = [col for col in df.columns if col != st.session_state.selected_time_col and 
+                                (df[col].dtype == 'object' or 
+                                df[col].dtype == 'category' or 
+                                df[col].nunique() <= 20)]
                 
-    if stacked_fig:
-        st.plotly_chart(stacked_fig, use_container_width=True)
-    else:
-        st.warning("Could not create stacked area chart with the selected columns")
-        
-    st.markdown("</div>", unsafe_allow_html=True)
-            # IP port flow visualization
-    st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
-    st.markdown("<div class='panel-header'>IP-PORT FLOW ANALYSIS</div>", unsafe_allow_html=True)
+                if not category_cols:
+                    category_cols = [col for col in df.columns if col != st.session_state.selected_time_col and
+                                    df[col].dtype in ['int64', 'float64'] and
+                                    df[col].nunique() <= 20]
+                
+                st.session_state.selected_group_col = category_cols[0] if category_cols else None
+                st.session_state.category_cols = category_cols
 
-    # Check if we have IP and port columns
-    ip_cols = [col for col in df.columns if 'ip' in col.lower()]
-    port_cols = [col for col in df.columns if 'port' in col.lower()]
+            # Fonctions de callback pour mettre à jour les variables de session sans rafraîchir
+            def update_time_col():
+                st.session_state.selected_time_col = st.session_state.time_axis_col_select
+                
+            def update_group_col():
+                st.session_state.selected_group_col = st.session_state.group_by_col_select
 
-    if ip_cols and port_cols:
-        # Let user select columns
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            src_ip_col = st.selectbox(
-                "Source IP",
-                [col for col in ip_cols if 'src' in col.lower() or 'source' in col.lower()],
-                key="src_ip_col_flow"
-            )
-        
-        with col2:
-            dst_ip_col = st.selectbox(
-                "Destination IP",
-                [col for col in ip_cols if 'dst' in col.lower() or 'dest' in col.lower()],
-                key="dst_ip_col_flow"
-            )
-        
-        col3, col4 = st.columns(2)
-        with col3:
-            dst_port_col = st.selectbox(
-                "Destination Port",
-                port_cols,
-                key="dst_port_col_flow"
-            )
-        
-        with col4:
-            # Get top destination IPs by count for selection
-            top_dst_ips = df[dst_ip_col].value_counts().nlargest(10).index.tolist()
-            selected_dst_ip = st.selectbox(
-                "Filter Destination IP",
-                ["All"] + top_dst_ips,
-                key="selected_dst_ip"
-            )
-        
-        # Add options row
-        col_opts1, col_opts2 = st.columns(2)
-        with col_opts1:
-            show_top10_only = st.checkbox("Show only top 10 source IPs by traffic volume", 
-                                        value=False, 
-                                        key="show_top10")
-        
-        # Create visualization
-        if st.button("🔄 Generate Flow Diagram", key="gen_flow_diagram"):
-            with st.spinner("Generating IP-Port flow diagram..."):
-                filter_ip = None if selected_dst_ip == "All" else selected_dst_ip
-                flow_fig = create_ip_port_flow_diagram(
-                    df, 
-                    src_ip_col, 
-                    dst_ip_col, 
-                    dst_port_col,
-                    filter_dst_ip=filter_ip,
-                    show_only_top10=show_top10_only
+            # Interface utilisateur avec callbacks
+            col1, col2 = st.columns(2)
+
+            with col1:
+                selected_time_col = st.selectbox(
+                    "Time Axis",
+                    timestamp_cols,
+                    index=timestamp_cols.index(st.session_state.selected_time_col) if st.session_state.selected_time_col in timestamp_cols else 0,
+                    key="time_axis_col_select",
+                    on_change=update_time_col
                 )
-                
-                if flow_fig:
-                    st.plotly_chart(flow_fig, use_container_width=True)
-                    
-                    # Add explanatory text with cyberpunk styling
-                    st.markdown("""
-                    <div style='background-color: #181b24; padding: 15px; border-radius: 3px; 
-                        border: 1px solid rgba(255, 89, 0, 0.3); margin-top: 10px;'>
-                        <p style='margin: 0;'>
-                            <span style='color: #ff5900; font-weight: bold;'>NETWORK FLOW ANALYSIS:</span>
-                            This diagram visualizes network traffic patterns from source IPs (left) to destination ports (right).
-                            Line thickness represents connection frequency, and colors indicate different destination ports.
-                            <br><br>
-                            <span style='color: #00f2ff; font-size: 0.9rem;'>
-                                Hover over connections to see detailed traffic counts. Source IPs are sorted by total connection volume.
-                            </span>
-                        </p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.error("Could not create flow diagram with selected columns")
-    else:
-        st.info("No IP address or port columns detected in this dataset.")
 
-    st.markdown("</div>", unsafe_allow_html=True)
+            with col2:
+                # Utiliser les colonnes déjà identifiées stockées dans l'état de session
+                category_cols = st.session_state.category_cols
+                
+                if category_cols:
+                    selected_group_col = st.selectbox(
+                        "Group By",
+                        category_cols,
+                        index=category_cols.index(st.session_state.selected_group_col) if st.session_state.selected_group_col in category_cols else 0,
+                        key="group_by_col_select",
+                        on_change=update_group_col
+                    )
+
+            # Utiliser les variables stockées dans la session pour créer le graphique
+            stacked_fig = create_stacked_area_chart(df, st.session_state.selected_time_col, st.session_state.selected_group_col)
+                        
+            if stacked_fig:
+                st.plotly_chart(stacked_fig, use_container_width=True)
+            else:
+                st.warning("Could not create stacked area chart with the selected columns")
+                
+            st.markdown("</div>", unsafe_allow_html=True)
+                    # IP port flow visualization
+            st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
+            st.markdown("<div class='panel-header'>IP-PORT FLOW ANALYSIS</div>", unsafe_allow_html=True)
+
+            # Check if we have IP and port columns
+            ip_cols = [col for col in df.columns if 'ip' in col.lower()]
+            port_cols = [col for col in df.columns if 'port' in col.lower()]
+
+            if ip_cols and port_cols:
+                # Let user select columns
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    src_ip_col = st.selectbox(
+                        "Source IP",
+                        [col for col in ip_cols if 'src' in col.lower() or 'source' in col.lower()],
+                        key="src_ip_col_flow"
+                    )
+                
+                with col2:
+                    dst_ip_col = st.selectbox(
+                        "Destination IP",
+                        [col for col in ip_cols if 'dst' in col.lower() or 'dest' in col.lower()],
+                        key="dst_ip_col_flow"
+                    )
+                
+                col3, col4 = st.columns(2)
+                with col3:
+                    dst_port_col = st.selectbox(
+                        "Destination Port",
+                        port_cols,
+                        key="dst_port_col_flow"
+                    )
+                
+                with col4:
+                    # Get top destination IPs by count for selection
+                    top_dst_ips = df[dst_ip_col].value_counts().nlargest(10).index.tolist()
+                    selected_dst_ip = st.selectbox(
+                        "Filter Destination IP",
+                        ["All"] + top_dst_ips,
+                        key="selected_dst_ip"
+                    )
+                
+                # Add options row
+                col_opts1, col_opts2 = st.columns(2)
+                with col_opts1:
+                    show_top10_only = st.checkbox("Show only top 10 source IPs by traffic volume", 
+                                                value=False, 
+                                                key="show_top10")
+                
+                # Create visualization
+                if st.button("🔄 Generate Flow Diagram", key="gen_flow_diagram"):
+                    with st.spinner("Generating IP-Port flow diagram..."):
+                        filter_ip = None if selected_dst_ip == "All" else selected_dst_ip
+                        flow_fig = create_ip_port_flow_diagram(
+                            df, 
+                            src_ip_col, 
+                            dst_ip_col, 
+                            dst_port_col,
+                            filter_dst_ip=filter_ip,
+                            show_only_top10=show_top10_only
+                        )
+                        
+                        if flow_fig:
+                            st.plotly_chart(flow_fig, use_container_width=True)
+                            
+                            # Add explanatory text with cyberpunk styling
+                            st.markdown("""
+                            <div style='background-color: #181b24; padding: 15px; border-radius: 3px; 
+                                border: 1px solid rgba(255, 89, 0, 0.3); margin-top: 10px;'>
+                                <p style='margin: 0;'>
+                                    <span style='color: #ff5900; font-weight: bold;'>NETWORK FLOW ANALYSIS:</span>
+                                    This diagram visualizes network traffic patterns from source IPs (left) to destination ports (right).
+                                    Line thickness represents connection frequency, and colors indicate different destination ports.
+                                    <br><br>
+                                    <span style='color: #00f2ff; font-size: 0.9rem;'>
+                                        Hover over connections to see detailed traffic counts. Source IPs are sorted by total connection volume.
+                                    </span>
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.error("Could not create flow diagram with selected columns")
+            else:
+                st.info("No IP address or port columns detected in this dataset.")
+
+            st.markdown("</div>", unsafe_allow_html=True)
     with tab2:
         if 'df' in locals():
             st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
