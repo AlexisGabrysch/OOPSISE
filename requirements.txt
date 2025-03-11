@@ -1,6 +1,10 @@
-streamlit
-pandas
-numpy
-plotly
+streamlit==1.43.*
+pandas==2.2.*
+numpy==2.2.*
+plotly==6.0.*
 scikit-learn==1.5.*
-time
+matplotlib==3.8.*
+pyarrow==16.0.*
+fastparquet==2024.2.*
+geoip2==4.8.*
+requests>=2.31.0
