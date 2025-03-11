@@ -1325,7 +1325,6 @@ def Navbar():
     with st.sidebar:
         st.markdown("## Navigation")
         st.page_link('app.py', label='Accueil', icon='🏠')
-        st.page_link('pages/admin.py', label='Admin', icon='🔒')
         st.page_link('pages/dashboard.py', label='Dashboard', icon='📊')
         st.markdown("---")
 
