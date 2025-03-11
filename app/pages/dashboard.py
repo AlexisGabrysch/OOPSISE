@@ -6,6 +6,12 @@ import plotly.express as px
 import numpy as np
 import datetime
 from datetime import timedelta
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+from sklearn.ensemble import IsolationForest
+import time
+
 
 st.set_page_config(page_title="Dashboard", page_icon="📊", layout="wide")
 
@@ -1326,10 +1332,6 @@ def main():
                                     <span style='color: #ff5900; font-weight: bold;'>NETWORK FLOW ANALYSIS:</span>
                                     This diagram visualizes network traffic patterns from source IPs (left) to destination ports (right).
                                     Line thickness represents connection frequency, and colors indicate different destination ports.
-                                    <br><br>
-                                    <span style='color: #00f2ff; font-size: 0.9rem;'>
-                                        Hover over connections to see detailed traffic counts. Source IPs are sorted by total connection volume.
-                                    </span>
                                 </p>
                             </div>
                             """, unsafe_allow_html=True)
@@ -1750,10 +1752,10 @@ def main():
                 with col2:
                     ema_window = st.slider(
                         "EMA Window Size",
-                        min_value=5,
-                        max_value=100,
-                        value=20,
-                        step=5,
+                        min_value=1,
+                        max_value=30,
+                        value=5,
+                        step=1,
                         key="ema_window",
                         help="Window size for Exponential Moving Average calculation"
                     )
@@ -2011,9 +2013,308 @@ def main():
             st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
             st.markdown("<div class='panel-header'>PATTERN DETECTION</div>", unsafe_allow_html=True)
             
-            # Placeholder for additional anomaly detection functionality
-            st.info("🔍 More detection algorithms coming soon. Stay tuned!")
-            
+            if 'df' in locals():
+                # CRISP-DM Analysis
+                class CrispDMAnalysis:
+                    def __init__(self, data):
+                        self.df = data
+                        self.X = None
+                        self.X_scaled = None
+                        self.X_pca = None
+                        self.pca = None
+                        self.kmeans = None
+                        self.clusters = None
+                        self.isolation_forest = None
+                        self.anomalies = None
+
+                    def data_preparation(self):
+                        # Select numeric columns
+                        numeric_cols = self.df.select_dtypes(include=[np.number]).columns
+                        self.X = self.df[numeric_cols].fillna(0)
+                        
+                        # Standardization
+                        scaler = StandardScaler()
+                        self.X_scaled = scaler.fit_transform(self.X)
+                        
+                        # PCA
+                        self.pca = PCA()
+                        self.X_pca = self.pca.fit_transform(self.X_scaled)
+
+                    def modeling(self):
+                        # K-means clustering with selectable number of clusters
+                        self.kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+                        self.clusters = self.kmeans.fit_predict(self.X_pca)
+                        
+                        # Anomaly detection with configurable contamination
+                        self.isolation_forest = IsolationForest(
+                            random_state=42, 
+                            contamination=contamination
+                        )
+                        self.anomalies = self.isolation_forest.fit_predict(self.X_pca)
+
+                    def export_results(self):
+                        results = self.df.copy()
+                        results['Cluster'] = self.clusters
+                        results['Anomaly'] = self.anomalies
+                        return results
+
+                    def get_cluster_stats(self):
+                        results = self.export_results()
+                        stats = []
+                        for cluster in np.unique(self.clusters):
+                            cluster_data = results[results['Cluster'] == cluster]
+                            stats.append({
+                                'Cluster': cluster,
+                                'Size': len(cluster_data),
+                                'Percentage': len(cluster_data) / len(results) * 100,
+                                'Anomalies': (cluster_data['Anomaly'] == -1).sum()
+                            })
+                        return pd.DataFrame(stats)
+                
+                # Configuration parameters 
+                col1, col2 = st.columns(2)
+                with col1:
+                    n_clusters = st.slider("Number of clusters", min_value=2, max_value=10, value=3, step=1)
+                with col2:
+                    contamination = st.slider("Anomaly threshold", min_value=0.01, max_value=0.2, value=0.05, step=0.01,
+                                            help="Expected proportion of anomalies (lower value = fewer anomalies)")
+                
+                # Launch analysis button with cyberpunk styling
+                if st.button("🔍 RUN ADVANCED PATTERN DETECTION", type="primary", key="run_crisp"):
+                    with st.spinner("Running CRISP-DM analysis..."):
+                        # Initialize analysis
+                        analysis = CrispDMAnalysis(df)
+                        
+                        with st.status("Processing data...", expanded=True) as status:
+                            st.write("Preparing data...")
+                            analysis.data_preparation()
+                            st.write("Running dimensionality reduction...")
+                            time.sleep(0.5)  # For visual effect
+                            st.write("Applying clustering algorithms...")
+                            analysis.modeling()
+                            st.write("Generating visualizations...")
+                            status.update(label="Analysis complete!", state="complete", expanded=False)
+                        
+                        # Results display with cyberpunk styling
+                        st.markdown("<div class='panel-header' style='margin-top:15px;'>DETECTION RESULTS</div>", unsafe_allow_html=True)
+                        
+                        # Create metrics with cyberpunk styling 
+                        metric_cols = st.columns(3)
+                        with metric_cols[0]:
+                            create_metric_card("CLUSTERS", f"{len(np.unique(analysis.clusters))}")
+                        with metric_cols[1]:
+                            anomaly_percent = (analysis.anomalies == -1).mean() * 100
+                            create_metric_card("ANOMALIES", f"{anomaly_percent:.1f}%")
+                        with metric_cols[2]:
+                            variance_explained = sum(analysis.pca.explained_variance_ratio_) * 100
+                            create_metric_card("VARIANCE EXPLAINED", f"{variance_explained:.1f}%")
+                        
+                        # Using Plotly for interactive cyberpunk-styled 3D visualization
+                        st.markdown("<div class='panel-header' style='margin-top:15px;'>CLUSTER ANALYSIS</div>", unsafe_allow_html=True)
+                        
+                        # Create 3D scatter plot of clusters
+                        cluster_fig = go.Figure(data=[go.Scatter3d(
+                            x=analysis.X_pca[:, 0],
+                            y=analysis.X_pca[:, 1],
+                            z=analysis.X_pca[:, 2],
+                            mode='markers',
+                            marker=dict(
+                                size=4,
+                                color=analysis.clusters,
+                                colorscale=[
+                                    [0, '#00f2ff'],
+                                    [0.33, '#00ff9d'],
+                                    [0.66, '#ff5900'],
+                                    [1, '#ff3864']
+                                ],
+                                opacity=0.8,
+                                colorbar=dict(
+                                    title="Cluster",
+                                    thickness=15,
+                                    tickvals=list(range(n_clusters)),
+                                    ticktext=list(range(n_clusters))
+                                )
+                            ),
+                            hovertemplate='<b>Cluster:</b> %{marker.color}<br>' +
+                                        '<b>PC1:</b> %{x:.2f}<br>' +
+                                        '<b>PC2:</b> %{y:.2f}<br>' +
+                                        '<b>PC3:</b> %{z:.2f}'
+                        )])
+                        
+                        # Apply cyberpunk styling
+                        cluster_fig.update_layout(
+                            template='plotly_dark',
+                            margin=dict(l=0, r=0, b=0, t=30),
+                            scene=dict(
+                                xaxis_title='PC1',
+                                yaxis_title='PC2',
+                                zaxis_title='PC3',
+                                xaxis=dict(showbackground=True, backgroundcolor='rgb(15, 20, 30)'),
+                                yaxis=dict(showbackground=True, backgroundcolor='rgb(15, 20, 30)'),
+                                zaxis=dict(showbackground=True, backgroundcolor='rgb(15, 20, 30)')
+                            ),
+                            height=500,
+                            title=dict(
+                                text="3D Cluster Analysis (PCA + K-means)",
+                                font=dict(size=16, color="#00f2ff"),
+                                x=0.5
+                            ),
+                            paper_bgcolor='rgba(10, 15, 25, 0.0)',
+                            plot_bgcolor='rgba(10, 15, 25, 0.0)',
+                        )
+                        
+                        # Show plot
+                        st.plotly_chart(cluster_fig, use_container_width=True)
+                        
+                        # Create 3D scatter plot of anomalies
+                        st.markdown("<div class='panel-header' style='margin-top:15px;'>ANOMALY DETECTION</div>", unsafe_allow_html=True)
+                        
+                        anomaly_fig = go.Figure(data=[go.Scatter3d(
+                            x=analysis.X_pca[:, 0],
+                            y=analysis.X_pca[:, 1],
+                            z=analysis.X_pca[:, 2],
+                            mode='markers',
+                            marker=dict(
+                                size=5,
+                                color=analysis.anomalies,
+                                colorscale=[
+                                    [0, '#ff3864'],  # -1 (anomalies) in red
+                                    [1, '#00f2ff']   # 1 (normal) in cyan
+                                ],
+                                opacity=0.8,
+                                colorbar=dict(
+                                    title="Status",
+                                    thickness=15,
+                                    tickvals=[-1, 1],
+                                    ticktext=["Anomaly", "Normal"]
+                                )
+                            ),
+                            hovertemplate='<b>Status:</b> %{text}<br>' +
+                                        '<b>PC1:</b> %{x:.2f}<br>' +
+                                        '<b>PC2:</b> %{y:.2f}<br>' +
+                                        '<b>PC3:</b> %{z:.2f}',
+                            text=["Anomaly" if val == -1 else "Normal" for val in analysis.anomalies]
+                        )])
+                        
+                        # Apply cyberpunk styling
+                        anomaly_fig.update_layout(
+                            template='plotly_dark',
+                            margin=dict(l=0, r=0, b=0, t=30),
+                            scene=dict(
+                                xaxis_title='PC1',
+                                yaxis_title='PC2',
+                                zaxis_title='PC3',
+                                xaxis=dict(showbackground=True, backgroundcolor='rgb(15, 20, 30)'),
+                                yaxis=dict(showbackground=True, backgroundcolor='rgb(15, 20, 30)'),
+                                zaxis=dict(showbackground=True, backgroundcolor='rgb(15, 20, 30)')
+                            ),
+                            height=500,
+                            title=dict(
+                                text="3D Anomaly Detection (Isolation Forest)",
+                                font=dict(size=16, color="#ff3864"),
+                                x=0.5
+                            ),
+                            paper_bgcolor='rgba(10, 15, 25, 0.0)',
+                            plot_bgcolor='rgba(10, 15, 25, 0.0)',
+                        )
+                        
+                        # Show plot
+                        st.plotly_chart(anomaly_fig, use_container_width=True)
+                        
+                        # Create bar chart for explained variance
+                        st.markdown("<div class='panel-header' style='margin-top:15px;'>PRINCIPAL COMPONENTS ANALYSIS</div>", unsafe_allow_html=True)
+                        
+                        variance_fig = go.Figure()
+                        components = range(1, len(analysis.pca.explained_variance_ratio_) + 1)
+                        
+                        # Only show first 10 components for clarity
+                        display_components = min(10, len(components))
+                        
+                        variance_fig.add_trace(go.Bar(
+                            x=list(range(1, display_components + 1)),
+                            y=analysis.pca.explained_variance_ratio_[:display_components] * 100,
+                            marker=dict(
+                                color=[f'rgba(0, 242, 255, {0.9 - i*0.08})' for i in range(display_components)],
+                                line=dict(color='rgba(0, 255, 198, 0.5)', width=1)
+                            ),
+                            hovertemplate='<b>Component %{x}</b><br>Variance Explained: %{y:.1f}%<extra></extra>'
+                        ))
+                        
+                        # Apply cyberpunk styling
+                        variance_fig.update_layout(
+                            template='plotly_dark',
+                            margin=dict(l=10, r=10, t=30, b=10),
+                            height=350,
+                            title=dict(
+                                text="Variance Explained by Principal Components",
+                                font=dict(size=16, color="#00ff9d"),
+                                x=0.5
+                            ),
+                            xaxis=dict(
+                                title="Component",
+                                tickmode='linear',
+                                tickfont=dict(color="#d8d9da"),
+                                gridcolor='rgba(26, 32, 44, 0.8)',
+                            ),
+                            yaxis=dict(
+                                title="Variance Explained (%)",
+                                tickfont=dict(color="#d8d9da"),
+                                gridcolor='rgba(26, 32, 44, 0.8)',
+                                ticksuffix="%"
+                            ),
+                            paper_bgcolor='rgba(10, 15, 25, 0.0)',
+                            plot_bgcolor='rgba(10, 15, 25, 0.0)',
+                        )
+                        
+                        # Add annotations for variance percentages
+                        for i in range(display_components):
+                            variance_fig.add_annotation(
+                                x=i+1,
+                                y=analysis.pca.explained_variance_ratio_[i] * 100 + 2,
+                                text=f"{analysis.pca.explained_variance_ratio_[i] * 100:.1f}%",
+                                font=dict(color="#00f2ff", size=10),
+                                showarrow=False
+                            )
+                        
+                        # Show plot
+                        st.plotly_chart(variance_fig, use_container_width=True)
+                        
+                        # Display cluster statistics
+                        st.markdown("<div class='panel-header' style='margin-top:15px;'>CLUSTER STATISTICS</div>", unsafe_allow_html=True)
+                        cluster_stats = analysis.get_cluster_stats()
+                        
+                        # Format percentages
+                        cluster_stats['Percentage'] = cluster_stats['Percentage'].apply(lambda x: f"{x:.1f}%")
+                        
+                        # Display dataframe with cyberunk styling
+                        st.dataframe(
+                            cluster_stats,
+                            use_container_width=True,
+                            column_config={
+                                "Cluster": st.column_config.NumberColumn(
+                                    "Cluster ID",
+                                    help="Cluster identifier",
+                                    format="%d",
+                                ),
+                                "Size": st.column_config.NumberColumn(
+                                    "Data Points",
+                                    help="Number of data points in cluster",
+                                    format="%d",
+                                ),
+                                "Percentage": st.column_config.TextColumn(
+                                    "% of Data",
+                                    help="Percentage of total data in this cluster",
+                                ),
+                                "Anomalies": st.column_config.NumberColumn(
+                                    "Anomalies",
+                                    help="Number of anomalies detected in cluster",
+                                    format="%d",
+                                ),
+                            },
+                        )
+                  
+                        
+                
             st.markdown("</div>", unsafe_allow_html=True)
         else:
             st.info("Please upload a file in the Dashboard tab first")

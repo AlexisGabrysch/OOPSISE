@@ -1,6 +1,5 @@
 import streamlit as st
 from pages.ressources.components import Navbar , apply_border_glitch_effect, apply_custom_css
-import pandas as pd
 
 st.set_page_config(page_title="OOPSISE", page_icon="📊", layout="wide")
 
@@ -34,23 +33,6 @@ def main():
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        st.markdown("""
-        <div style='background-color: #1f2430; padding: 20px; border-radius: 5px; border: 1px solid rgba(0, 242, 255, 0.3);'>
-            <h3 style='color: #00f2ff;'>QUICK ACTIONS</h3>
-            <ul style='list-style-type: none; padding-left: 0;'>
-                <li style='margin-bottom: 10px; padding: 10px; background-color: #161b22; border-left: 3px solid #00f2ff;'>
-                    <a href='pages/dashboard.py' style='text-decoration: none;'>
-                        📊 Launch Data Dashboard
-                    </a>
-                </li>
-                <li style='margin-bottom: 10px; padding: 10px; background-color: #161b22; border-left: 3px solid #00f2ff;'>
-                    <a href='pages/admin.py' style='text-decoration: none;'>
-                        🔒 Access Admin Panel
-                    </a>
-                </li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
     
     with col2:
         st.markdown("""

@@ -1,11 +1,151 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import requests
 import ipaddress
 import socket
+
+
+def parse_timestamp(df, timestamp_col):
+    """Parse timestamp column with improved handling for multiple formats"""
+    # Create a copy to avoid warnings about modifying the original dataframe
+    df_copy = df.copy()
+    
+    # First check if column is already datetime
+    if pd.api.types.is_datetime64_any_dtype(df_copy[timestamp_col]):
+        return df_copy
+    
+    # Sample the column to identify the format
+    sample_values = df_copy[timestamp_col].dropna().astype(str).iloc[:10].tolist()
+    
+    # Format spécifique: Mar 10 20:26:05
+    if any(len(str(val).split()) == 3 and str(val).split()[0] in ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] for val in sample_values):
+        try:
+            # Essayer d'ajouter l'année courante si elle est absente
+            current_year = datetime.datetime.now().year
+            
+            def add_year_if_needed(ts_str):
+                try:
+                    if isinstance(ts_str, str):
+                        parts = ts_str.split()
+                        if len(parts) == 3:  # Format "Mar 10 20:26:05" sans année
+                            return f"{parts[0]} {parts[1]} {current_year} {parts[2]}"
+                    return ts_str
+                except:
+                    return ts_str
+            
+            # Appliquer la transformation et parser
+            df_copy[timestamp_col] = df_copy[timestamp_col].apply(add_year_if_needed)
+            df_copy[timestamp_col] = pd.to_datetime(df_copy[timestamp_col], format="%b %d %Y %H:%M:%S")
+            return df_copy
+        except Exception as e:
+            st.warning(f"Erreur lors du parsing du format spécial: {str(e)}")
+    
+    # Try to detect Elasticsearch/Kibana format with '@' symbol
+    if any('@' in str(val) for val in sample_values):
+        try:
+            # Special handling for Kibana format: "Mar 10, 2025 @ 12:42:28.656"
+            # First clean up the format to something pandas can understand
+            def clean_kibana_timestamp(ts):
+                try:
+                    if isinstance(ts, str) and '@' in ts:
+                        # Replace @ with space for easier parsing
+                        return ts.replace('@', '')
+                    return ts
+                except:
+                    return ts
+            
+            # Apply cleaning function
+            df_copy[timestamp_col] = df_copy[timestamp_col].apply(clean_kibana_timestamp)
+            
+            # Now try to parse with explicit format
+            try:
+                df_copy[timestamp_col] = pd.to_datetime(df_copy[timestamp_col], format='%b %d, %Y %H:%M:%S.%f')
+                return df_copy
+            except:
+                pass  # Fall through to next method if this fails
+        except Exception as e:
+            st.warning(f"Special Elasticsearch format handling failed: {str(e)}")
+    
+    # Try common formats explicitly to avoid format inference issues
+    formats_to_try = [
+        '%Y-%m-%dT%H:%M:%S.%fZ',  # ISO format with milliseconds and Z
+        '%Y-%m-%dT%H:%M:%SZ',     # ISO format without milliseconds with Z
+        '%Y-%m-%dT%H:%M:%S.%f',   # ISO format with milliseconds
+        '%Y-%m-%dT%H:%M:%S',      # ISO format without milliseconds
+        '%Y-%m-%d %H:%M:%S.%f',   # Standard datetime with milliseconds
+        '%Y-%m-%d %H:%M:%S',      # Standard datetime
+        '%m/%d/%Y %H:%M:%S',      # US format
+        '%d/%m/%Y %H:%M:%S',      # European format
+        '%Y-%m-%d',               # Just date
+        '%m/%d/%Y',               # US date only
+        '%d/%m/%Y',               # European date only
+        '%b %d, %Y',              # Month name date
+        '%B %d, %Y',              # Full month name date
+        '%d %b %Y',               # Day first with month name
+        '%Y%m%d',                 # Compact date format
+        '%b %d, %Y %H:%M:%S',     # Month name with time
+        '%b %d, %Y %H:%M:%S.%f',  # Month name with time and milliseconds
+        '%b %d %H:%M:%S'          # Format "Mar 10 20:26:05" (sans année)
+    ]
+    
+    for fmt in formats_to_try:
+        try:
+            df_copy[timestamp_col] = pd.to_datetime(df_copy[timestamp_col], format=fmt)
+            return df_copy
+        except:
+            continue
+    
+    # If explicit formats fail, try to extract date components with regex
+    date_patterns = [
+        # Extract ISO-like format
+        r'(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})',
+        # Extract Elasticsearch format
+        r'([A-Za-z]{3}\s\d{1,2},\s\d{4}).*?(\d{2}:\d{2}:\d{2})',
+        # Extract format "Mar 10 20:26:05"
+        r'([A-Za-z]{3})\s+(\d{1,2})\s+(\d{2}:\d{2}:\d{2})'
+    ]
+    
+    for pattern in date_patterns:
+        try:
+            # Extract date and time components
+            date_match = df_copy[timestamp_col].astype(str).str.extract(pattern)
+            if not date_match.iloc[:, 0].isna().all():
+                # Combine extracted components
+                extracted_datetime = date_match.iloc[:, 0] + ' ' + date_match.iloc[:, 1]
+                df_copy[timestamp_col] = pd.to_datetime(extracted_datetime, errors='coerce')
+                if not df_copy[timestamp_col].isna().all():
+                    return df_copy
+        except:
+            continue
+    
+    # Last resort - try pandas default parsing with explicit error handling
+    try:
+        # Use errors='coerce' to convert unparseable values to NaT
+        df_copy[timestamp_col] = pd.to_datetime(df_copy[timestamp_col], errors='coerce')
+        
+        # Check if conversion worked for at least some values
+        if not df_copy[timestamp_col].isna().all():
+            # Display a warning about unparseable dates
+            na_count = df_copy[timestamp_col].isna().sum()
+            if na_count > 0:
+                percentage = (na_count / len(df_copy)) * 100
+                st.warning(f"⚠️ {na_count} values ({percentage:.1f}%) in column '{timestamp_col}' couldn't be parsed as dates and were replaced with NaT.")
+            return df_copy
+    except Exception as e:
+        pass
+    
+    # If all else fails, show helpful error message with example values
+    st.error(f"""
+    Could not parse date format in '{timestamp_col}'. 
+    Example values: {', '.join(str(val) for val in sample_values[:3])}
+    
+    Please select a different timestamp column or ensure the data is in a standard date format.
+    """)
+    
+    # Return original dataframe but with warning
+    return df
 
 
  
@@ -206,6 +346,7 @@ def create_ip_port_flow_diagram(df, src_ip_col, dst_ip_col, dst_port_col, filter
     # Filter to top 10 source IPs by count if requested
     if show_only_top10:
         top_srcs = src_ip_totals.nlargest(10, 'count')[src_ip_col].tolist()
+        
         flow_counts = flow_counts[flow_counts[src_ip_col].isin(top_srcs)]
     
     # Get unique source IPs and destination ports
@@ -224,7 +365,10 @@ def create_ip_port_flow_diagram(df, src_ip_col, dst_ip_col, dst_port_col, filter
     
     # Create position mappings for nodes
     # Source IPs on left (sorted by count from top to bottom)
+
+    unique_srcs = unique_srcs[::-1]
     src_positions = {ip: (0, i) for i, ip in enumerate(unique_srcs)}
+    
     port_positions = {port: (1, i) for i, port in enumerate(unique_ports)}
     
     # Define cyberpunk color palette
