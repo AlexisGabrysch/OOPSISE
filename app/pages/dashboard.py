@@ -1342,7 +1342,6 @@ def main():
     with tab2:
         if 'df' in locals():
             st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
-            st.markdown("<div class='panel-header'>DATA EXPLORER</div>", unsafe_allow_html=True)
             
             # Column selection
             all_cols = df.columns.tolist()
@@ -1350,306 +1349,673 @@ def main():
             categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
             datetime_cols = df.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
             
-            # Select mode: Standard viz or Kibana-like discover
-            viz_modes = ["Analysis Charts", "Data Discovery"]
-            selected_mode = st.radio("Select Mode", viz_modes, horizontal=True, key="viz_mode")
+            # Kibana Discover-like interface
+            st.markdown("<div class='panel-header' style='margin-top:15px;'>DISCOVER DATA</div>", unsafe_allow_html=True)
             
-            if selected_mode == "Analysis Charts":
-                # Chart type selection
-                chart_types = ["Distribution Analysis", "Correlation Analysis", "Time Series Analysis", "Categorical Analysis"]
-                selected_chart = st.selectbox("Select Analysis Type", chart_types, key="chart_type")
+            # Search box (filtering)
+            search_container = st.container()
+            with search_container:
+                search_cols, filter_cols = st.columns([3, 1])
+                with search_cols:
+                    search_term = st.text_input("Search in data", key="search_term", 
+                                    placeholder="Search...",
+                                    help="Enter text to filter across all columns")
+                with filter_cols:
+                    search_col = st.selectbox("in column", all_cols, key="search_col")
+            
+            # Filter data based on search
+            filtered_df = df.copy()
+            if search_term:
                 
-                # [All your existing chart code here]
-                # This part should remain the same as it already looks great 
+                try:
+                    filtered_df = df[df[search_col].astype(str).str.contains(search_term, case=False, na=False)]
+                except Exception as e:
+                    st.error(f"Error searching in column '{search_col}': {str(e)}")
+                    filtered_df = df
+        
+            # Column selector
+            st.markdown("<div class='panel-header' style='margin-top:15px;'>AVAILABLE FIELDS</div>", unsafe_allow_html=True)
+            
+            # Show field counts by type with cyberpunk styling
+            col_types = st.columns(4)
+            with col_types[0]:
+                create_metric_card("ALL FIELDS", f"{len(all_cols)}")
+            with col_types[1]:
+                create_metric_card("NUMERIC", f"{len(numeric_cols)}")
+            with col_types[2]:
+                create_metric_card("TEXT", f"{len(categorical_cols)}")
+            with col_types[3]:
+                create_metric_card("DATE", f"{len(datetime_cols)}")
+            
+            # Field selection with expandable sections like Kibana
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                selected_field_type = st.radio("Field Types", 
+                                            ["All", "Numeric", "Text", "Date"],
+                                            key="field_type")
                 
-            elif selected_mode == "Data Discovery":
-                # Kibana Discover-like interface
-                st.markdown("<div class='panel-header' style='margin-top:15px;'>DISCOVER DATA</div>", unsafe_allow_html=True)
+                # Filter columns based on selection
+                if selected_field_type == "All":
+                    selectable_cols = all_cols
+                elif selected_field_type == "Numeric":
+                    selectable_cols = numeric_cols
+                elif selected_field_type == "Text":
+                    selectable_cols = categorical_cols
+                else:  # Date
+                    selectable_cols = datetime_cols
                 
-                # Search box (filtering)
-                search_container = st.container()
-                with search_container:
-                    search_cols, filter_cols = st.columns([3, 1])
-                    with search_cols:
-                        search_term = st.text_input("Search in data", key="search_term", 
-                                        placeholder="Search...",
-                                        help="Enter text to filter across all columns")
-                    with filter_cols:
-                        search_col = st.selectbox("in column", ["All columns"] + all_cols, key="search_col")
+                selected_cols = st.multiselect("Select fields to display", 
+                                            selectable_cols,
+                                            default=selectable_cols[:5] if len(selectable_cols) > 5 else selectable_cols)
+            
+            with col2:
+                # Data preview with selected columns only
+                if not selected_cols:
+                    selected_cols = all_cols[:5] if len(all_cols) > 5 else all_cols
                 
-                # Filter data based on search
-                filtered_df = df.copy()
-                if search_term:
-                    if search_col == "All columns":
-                        mask = pd.DataFrame(False, index=df.index, columns=[0])
-                        for col in df.columns:
-                            if df[col].dtype == 'object' or df[col].dtype == 'category':
-                                mask = mask | df[col].astype(str).str.contains(search_term, case=False, na=False)
-                            else:
-                                # Convert to string for non-text columns
-                                mask = mask | df[col].astype(str).str.contains(search_term, case=False, na=False)
-                        filtered_df = df[mask.values]
-                    else:
-                        filtered_df = df[df[search_col].astype(str).str.contains(search_term, case=False, na=False)]
-                
-                # Column selector
-                st.markdown("<div class='panel-header' style='margin-top:15px;'>AVAILABLE FIELDS</div>", unsafe_allow_html=True)
-                
-                # Show field counts by type with cyberpunk styling
-                col_types = st.columns(4)
-                with col_types[0]:
-                    create_metric_card("ALL FIELDS", f"{len(all_cols)}")
-                with col_types[1]:
-                    create_metric_card("NUMERIC", f"{len(numeric_cols)}")
-                with col_types[2]:
-                    create_metric_card("TEXT", f"{len(categorical_cols)}")
-                with col_types[3]:
-                    create_metric_card("DATE", f"{len(datetime_cols)}")
-                
-                # Field selection with expandable sections like Kibana
-                col1, col2 = st.columns([1, 3])
-                with col1:
-                    selected_field_type = st.radio("Field Types", 
-                                                ["All", "Numeric", "Text", "Date"],
-                                                key="field_type")
-                    
-                    # Filter columns based on selection
-                    if selected_field_type == "All":
-                        selectable_cols = all_cols
-                    elif selected_field_type == "Numeric":
-                        selectable_cols = numeric_cols
-                    elif selected_field_type == "Text":
-                        selectable_cols = categorical_cols
-                    else:  # Date
-                        selectable_cols = datetime_cols
-                    
-                    selected_cols = st.multiselect("Select fields to display", 
-                                                selectable_cols,
-                                                default=selectable_cols[:5] if len(selectable_cols) > 5 else selectable_cols)
-                
-                with col2:
-                    # Data preview with selected columns only
-                    if not selected_cols:
-                        selected_cols = all_cols[:5] if len(all_cols) > 5 else all_cols
-                    
-                    # Show hit count like Kibana
-                    st.markdown(f"<div style='color:#00f2ff; margin-bottom:10px;'>Found <span style='font-size:1.2rem; font-weight:bold;'>{len(filtered_df)}</span> hits</div>", 
-                                unsafe_allow_html=True)
-                    
-                    # Pagination controls
-                    row_count = len(filtered_df)
-                    page_size = st.select_slider("Rows per page", 
-                                            options=[10, 20, 50, 100], 
-                                            value=20,
-                                            key="page_size")
-                    
-                    max_pages = (row_count // page_size) + (1 if row_count % page_size > 0 else 0)
-                    max_pages = max(1, max_pages)  # Ensure at least one page
-                    
-                    page_number = st.number_input("Page", 
-                                            min_value=1, 
-                                            max_value=max_pages,
-                                            value=1,
-                                            key="page_number")
-                    
-                    start_idx = (page_number - 1) * page_size
-                    end_idx = min(start_idx + page_size, row_count)
-                    
-                    page_data = filtered_df.iloc[start_idx:end_idx]
-                    
-                    # Display data as interactive table with expandable rows
-                    st.dataframe(page_data[selected_cols], use_container_width=True)
-                    
-                    # Expandable document view (Kibana-like)
-                    with st.expander("🔍 Detailed Document View", expanded=False):
-                        row_to_view = st.slider("Select Document #", 
-                                            min_value=1, 
-                                            max_value=len(page_data),
-                                            value=1,
-                                            key="doc_viewer") - 1
-                        
-                        if row_to_view < len(page_data):
-                            doc = page_data.iloc[row_to_view].to_dict()
-                            
-                            # Create a Kibana-like document view with JSON format
-                            st.markdown("<div class='panel-header' style='margin-top:15px;'>DOCUMENT DETAILS</div>", 
-                                    unsafe_allow_html=True)
-                            
-                            # Build a styled document view
-                            doc_html = "<div style='font-family: monospace; background-color: #0f1318; padding: 15px; " + \
-                                    "border-radius: 3px; border: 1px solid rgba(0, 255, 198, 0.2);'>"
-                            doc_html += "<span style='color: #00f2ff;'>{</span><br>"
-                            
-                            for key, val in doc.items():
-                                doc_html += f"&nbsp;&nbsp;<span style='color: #00ff9d;'>'{key}'</span>: "
-                                
-                                if isinstance(val, (int, float)):
-                                    doc_html += f"<span style='color: #ff5b79;'>{val}</span>,<br>"
-                                elif pd.isna(val):
-                                    doc_html += "<span style='color: #888888;'>null</span>,<br>"
-                                else:
-                                    doc_html += f"<span style='color: #E9F8FD;'>'{str(val)}'</span>,<br>"
-                            
-                            doc_html += "<span style='color: #00f2ff;'>}</span>"
-                            doc_html += "</div>"
-                            
-                            st.markdown(doc_html, unsafe_allow_html=True)
-                
-                # Data summary using metric cards like Kibana
-                st.markdown("<div class='panel-header' style='margin-top:15px;'>DATA INSIGHTS</div>", 
+                # Show hit count like Kibana
+                st.markdown(f"<div style='color:#00f2ff; margin-bottom:10px;'>Found <span style='font-size:1.2rem; font-weight:bold;'>{len(filtered_df)}</span> hits</div>", 
                             unsafe_allow_html=True)
                 
-                # Display statistics for selected columns
-                if selected_cols:
-                    # Focus on numeric columns for insights
-                    num_insight_cols = [col for col in selected_cols if col in numeric_cols]
-                    if num_insight_cols:
-                        # Create multiple rows of metrics for better organization
-                        for i in range(0, len(num_insight_cols), 4):
-                            cols_group = num_insight_cols[i:i+4]
-                            metric_cols = st.columns(len(cols_group))
-                            
-                            for idx, col in enumerate(cols_group):
-                                with metric_cols[idx]:
-                                    avg_val = filtered_df[col].mean()
-                                    create_metric_card(
-                                        f"AVG {col.upper()}", 
-                                        f"{avg_val:.2f}"
-                                    )
+                # Pagination controls
+                row_count = len(filtered_df)
+                page_size = st.select_slider("Rows per page", 
+                                        options=[10, 20, 50, 100], 
+                                        value=20,
+                                        key="page_size")
                 
-                # Add visualizations based on selected fields
-                if selected_cols:
-                    viz_cols = st.columns(2)
+                max_pages = (row_count // page_size) + (1 if row_count % page_size > 0 else 0)
+                max_pages = max(1, max_pages)  # Ensure at least one page
+                
+                page_number = st.number_input("Page", 
+                                        min_value=1, 
+                                        max_value=max_pages,
+                                        value=1,
+                                        key="page_number")
+                
+                start_idx = (page_number - 1) * page_size
+                end_idx = min(start_idx + page_size, row_count)
+                
+                page_data = filtered_df.iloc[start_idx:end_idx]
+                
+                # Display data as interactive table with expandable rows
+                st.dataframe(page_data[selected_cols], use_container_width=True)
+                
+                # Expandable document view (Kibana-like)
+                with st.expander("🔍 Detailed Document View", expanded=False):
+                    row_to_view = st.slider("Select Document #", 
+                                        min_value=1, 
+                                        max_value=len(page_data),
+                                        value=1,
+                                        key="doc_viewer") - 1
                     
-                    # For the most meaningful visualizations, we need to detect appropriate columns
-                    with viz_cols[0]:
-                        st.markdown("<div class='panel-header'>FIELD DISTRIBUTION</div>", 
-                                    unsafe_allow_html=True)
+                    if row_to_view < len(page_data):
+                        doc = page_data.iloc[row_to_view].to_dict()
                         
-                        viz_col = st.selectbox(
-                            "Select field to visualize", 
-                            selected_cols,
-                            key="viz_field"
+                        # Create a Kibana-like document view with JSON format
+                        st.markdown("<div class='panel-header' style='margin-top:15px;'>DOCUMENT DETAILS</div>", 
+                                unsafe_allow_html=True)
+                        
+                        # Build a styled document view
+                        doc_html = "<div style='font-family: monospace; background-color: #0f1318; padding: 15px; " + \
+                                "border-radius: 3px; border: 1px solid rgba(0, 255, 198, 0.2);'>"
+                        doc_html += "<span style='color: #00f2ff;'>{</span><br>"
+                        
+                        for key, val in doc.items():
+                            doc_html += f"&nbsp;&nbsp;<span style='color: #00ff9d;'>'{key}'</span>: "
+                            
+                            if isinstance(val, (int, float)):
+                                doc_html += f"<span style='color: #ff5b79;'>{val}</span>,<br>"
+                            elif pd.isna(val):
+                                doc_html += "<span style='color: #888888;'>null</span>,<br>"
+                            else:
+                                doc_html += f"<span style='color: #E9F8FD;'>'{str(val)}'</span>,<br>"
+                        
+                        doc_html += "<span style='color: #00f2ff;'>}</span>"
+                        doc_html += "</div>"
+                        
+                        st.markdown(doc_html, unsafe_allow_html=True)
+            
+            # Data summary using metric cards like Kibana
+            st.markdown("<div class='panel-header' style='margin-top:15px;'>DATA INSIGHTS</div>", 
+                        unsafe_allow_html=True)
+            if not selected_cols:
+                st.warning("Select fields to display insights")
+            # Display statistics for selected columns
+            if selected_cols:
+                # Focus on numeric columns for insights
+                num_insight_cols = [col for col in selected_cols if col in numeric_cols and df[col].isna().mean() < 0.5]
+                if num_insight_cols:
+                    # Create multiple rows of metrics for better organization
+                    for i in range(0, len(num_insight_cols), 4):
+                        cols_group = num_insight_cols[i:i+4]
+                        metric_cols = st.columns(len(cols_group))
+                        
+                        for idx, col in enumerate(cols_group):
+                            with metric_cols[idx]:
+                                avg_val = filtered_df[col].mean()
+                                create_metric_card(
+                                    f"AVG {col.upper()}", 
+                                    f"{avg_val:.2f}"
+                                )
+                else:
+                    st.info("No numeric columns selected for insights")
+            
+            # Add visualizations based on selected fields
+            if selected_cols:
+                viz_cols = st.columns(2)
+                
+                with viz_cols[0]:
+                    st.markdown("<div class='panel-header'>FIELD DISTRIBUTION</div>", 
+                                unsafe_allow_html=True)
+                    
+                    viz_col = st.selectbox(
+                        "Select field to visualize", 
+                        selected_cols,
+                        key="viz_field"
+                    )
+                    
+                    if viz_col in categorical_cols:
+                        # Create bar chart for categorical fields
+                        value_counts = filtered_df[viz_col].value_counts().nlargest(10)
+                        
+                        # Define cyberpunk color palette
+                        colors = [
+                            '#00f2ff',  # cyan
+                            '#ff5900',  # orange
+                            '#00ff9d',  # green
+                            '#a742f5',  # purple
+                            '#ff3864',  # pink
+                            '#ffb000',  # yellow
+                            '#36a2eb',  # blue
+                            '#29c7ac',  # teal
+                            '#ff6384',  # red
+                            '#00b8d9',  # light blue
+                        ]
+                        
+                        # Apply opacity to create a glow effect
+                        colors_with_opacity = [f"rgba({int(c[1:3], 16)}, {int(c[3:5], 16)}, {int(c[5:7], 16)}, 0.7)" for c in colors]
+                        
+                        fig = go.Figure()
+                        fig.add_trace(go.Bar(
+                            x=value_counts.index,
+                            y=value_counts.values,
+                            marker=dict(
+                                color=colors_with_opacity[:len(value_counts)],
+                                line=dict(
+                                    width=1,
+                                    color=[c.replace('0.7', '1.0') for c in colors_with_opacity[:len(value_counts)]]
+                                )
+                            ),
+                            hovertemplate='<b>%{x}</b><br>Count: %{y}<extra></extra>'
+                        ))
+                    
+                        # Apply cyberpunk styling
+                        fig.update_layout(
+                            template="plotly_dark",
+                            plot_bgcolor='rgba(23, 28, 38, 0.8)',
+                            paper_bgcolor='rgba(23, 28, 38, 0.0)',
+                            margin=dict(l=10, r=10, t=10, b=10),
+                            height=300,
+                            xaxis=dict(
+                                title=viz_col,
+                                title_font=dict(color='#00f2ff'),
+                                tickangle=45 if len(value_counts) > 5 else 0,
+                                gridcolor='rgba(26, 32, 44, 0.8)',
+                                showline=True,
+                                linecolor='rgba(0, 242, 255, 0.3)'
+                            ),
+                            yaxis=dict(
+                                title="Count",
+                                title_font=dict(color='#00f2ff'),
+                                gridcolor='rgba(26, 32, 44, 0.8)',
+                                showline=True,
+                                linecolor='rgba(0, 242, 255, 0.3)'
+                            ),
                         )
                         
-                        if viz_col in categorical_cols:
-                            # Create bar chart for categorical fields
-                            value_counts = filtered_df[viz_col].value_counts().nlargest(10)
-                            
-                            fig = go.Figure()
-                            fig.add_trace(go.Bar(
-                                x=value_counts.index,
-                                y=value_counts.values,
-                                marker_color='rgba(0, 242, 255, 0.7)',
-                                marker_line=dict(color='rgba(0, 255, 198, 0.5)', width=1)
-                            ))
+                        # Add glow effect around the plot
+                        fig.update_layout(
+                            shapes=[
+                                # Bottom border with gradient
+                                dict(
+                                    type="rect",
+                                    xref="paper", yref="paper",
+                                    x0=0, y0=0, x1=1, y1=0.02,
+                                    line_width=0,
+                                    fillcolor="rgba(0, 242, 255, 0.3)",
+                                    layer="below"
+                                ),
+                                # Top border with gradient
+                                dict(
+                                    type="rect",
+                                    xref="paper", yref="paper",
+                                    x0=0, y0=0.98, x1=1, y1=1,
+                                    line_width=0,
+                                    fillcolor="rgba(255, 89, 0, 0.3)",
+                                    layer="below"
+                                )
+                            ]
+                        )
                         
-                            fig.update_layout(
-                                template="plotly_dark",
-                                plot_bgcolor='rgba(23, 28, 38, 0.8)',
-                                paper_bgcolor='rgba(23, 28, 38, 0.8)',
-                                margin=dict(l=10, r=10, t=10, b=10),  # tighter margins
-                                height=300,
-                                xaxis=dict(
-                                    title=viz_col,
-                                    title_font=dict(color='#00f2ff'),
-                                    tickangle=45 if len(value_counts) > 5 else 0
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                    elif viz_col in numeric_cols:
+                        # Create histogram for numeric fields with gradient color scheme
+                        fig = go.Figure()
+                        fig.add_trace(go.Histogram(
+                            x=filtered_df[viz_col],
+                            nbinsx=20,
+                            marker=dict(
+                                color=filtered_df[viz_col],
+                                colorscale=[
+                                    [0, '#00f2ff'],      # Start with cyan
+                                    [0.33, '#00ff9d'],   # Move to green
+                                    [0.66, '#ff5900'],   # Then to orange
+                                    [1, '#ff3864']       # End with pink
+                                ],
+                                line=dict(
+                                    color='rgba(0, 242, 255, 0.5)',
+                                    width=1
                                 ),
-                                yaxis=dict(
-                                    title="Count",
-                                    title_font=dict(color='#00f2ff'),
-                                    gridcolor='rgba(26, 32, 44, 0.8)',
+                                opacity=0.8
+                            ),
+                            hovertemplate='Range: %{x}<br>Count: %{y}<extra></extra>'
+                        ))
+                        
+                        # Apply cyberpunk styling
+                        fig.update_layout(
+                            template="plotly_dark",
+                            plot_bgcolor='rgba(23, 28, 38, 0.8)',
+                            paper_bgcolor='rgba(23, 28, 38, 0.0)',
+                            margin=dict(l=10, r=10, t=10, b=10),
+                            height=300,
+                            xaxis=dict(
+                                gridcolor='rgba(26, 32, 44, 0.8)',
+                                title=viz_col,
+                                title_font=dict(color='#00f2ff'),
+                                showline=True,
+                                linecolor='rgba(0, 242, 255, 0.3)'
+                            ),
+                            yaxis=dict(
+                                gridcolor='rgba(26, 32, 44, 0.8)',
+                                title="Count",
+                                title_font=dict(color='#00f2ff'),
+                                showline=True,
+                                linecolor='rgba(0, 242, 255, 0.3)'
+                            ),
+                        )
+                        
+                        # Add glow effect around the plot
+                        fig.update_layout(
+                            shapes=[
+                                # Bottom border with gradient
+                                dict(
+                                    type="rect",
+                                    xref="paper", yref="paper",
+                                    x0=0, y0=0, x1=1, y1=0.02,
+                                    line_width=0,
+                                    fillcolor="rgba(0, 242, 255, 0.3)",
+                                    layer="below"
                                 ),
-                            )
-                            
-                            st.plotly_chart(fig, use_container_width=True)
-                            
-                        elif viz_col in numeric_cols:
-                            # Create histogram for numeric fields
-                            fig = go.Figure()
-                            fig.add_trace(go.Histogram(
-                                x=filtered_df[viz_col],
-                                nbinsx=20,
-                                marker_color='rgba(0, 242, 255, 0.7)',
-                                marker_line=dict(color='rgba(0, 255, 198, 0.5)', width=1)
-                            ))
-                            
-                            fig.update_layout(
-                                template="plotly_dark",
-                                plot_bgcolor='rgba(23, 28, 38, 0.8)',
-                                paper_bgcolor='rgba(23, 28, 38, 0.8)',
-                                margin=dict(l=10, r=10, t=10, b=10),
-                                height=300,
-                                xaxis=dict(
-                                    gridcolor='rgba(26, 32, 44, 0.8)',
-                                    title=viz_col,
-                                    title_font=dict(color='#00f2ff')
-                                ),
-                                yaxis=dict(
-                                    gridcolor='rgba(26, 32, 44, 0.8)',
-                                    title="Count",
-                                    title_font=dict(color='#00f2ff')
-                                ),
-                            )
-                            
-                            st.plotly_chart(fig, use_container_width=True)
+                                # Top border with gradient
+                                dict(
+                                    type="rect",
+                                    xref="paper", yref="paper",
+                                    x0=0, y0=0.98, x1=1, y1=1,
+                                    line_width=0,
+                                    fillcolor="rgba(255, 89, 0, 0.3)",
+                                    layer="below"
+                                )
+                            ]
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                with viz_cols[1]:
+                    st.markdown("<div class='panel-header'>TIME PATTERN</div>", 
+                                unsafe_allow_html=True)
                     
-                    with viz_cols[1]:
-                        st.markdown("<div class='panel-header'>TIME PATTERN</div>", 
-                                    unsafe_allow_html=True)
+                    # If we have datetime columns, show time-based visualization
+                    if datetime_cols:
+                        time_col = st.selectbox(
+                            "Select time field", 
+                            datetime_cols,
+                            key="time_field"
+                        )
                         
-                        # If we have datetime columns, show time-based visualization
-                        if datetime_cols:
-                            time_col = st.selectbox(
-                                "Select time field", 
-                                datetime_cols,
-                                key="time_field"
-                            )
-                            
-                            # Ensure datetime format
-                            if not pd.api.types.is_datetime64_any_dtype(filtered_df[time_col]):
-                                try:
-                                    filtered_df[time_col] = pd.to_datetime(filtered_df[time_col])
-                                except:
-                                    st.warning("Could not convert to datetime format")
-                            
-                            # Create time-based bar chart (documents per time period)
-                            time_df = filtered_df.set_index(time_col)
-                            time_df = time_df.resample('D').size().reset_index()
-                            time_df.columns = [time_col, 'count']
-                            
-                            fig = go.Figure()
-                            fig.add_trace(go.Bar(
-                                x=time_df[time_col],
-                                y=time_df['count'],
-                                marker_color='rgba(0, 242, 255, 0.7)',
-                                marker_line=dict(color='rgba(0, 255, 198, 0.5)', width=1)
-                            ))
-                            
-                            fig.update_layout(
-                                template="plotly_dark",
-                                plot_bgcolor='rgba(23, 28, 38, 0.8)',
-                                paper_bgcolor='rgba(23, 28, 38, 0.8)',
-                                margin=dict(l=10, r=10, t=10, b=10),
-                                height=300,
-                                xaxis=dict(
-                                    title=time_col,
-                                    title_font=dict(color='#00f2ff')
-                                ),
-                                yaxis=dict(
-                                    title="Document Count",
-                                    title_font=dict(color='#00f2ff'),
-                                    gridcolor='rgba(26, 32, 44, 0.8)',
-                                ),
-                            )
-                            
-                            st.plotly_chart(fig, use_container_width=True)
+                        # Ensure datetime format
+                        if not pd.api.types.is_datetime64_any_dtype(filtered_df[time_col]):
+                            try:
+                                filtered_df[time_col] = pd.to_datetime(filtered_df[time_col])
+                            except:
+                                st.warning("Could not convert to datetime format")
+                        
+                        # Create time-based bar chart (documents per time period)
+                        time_df = filtered_df.set_index(time_col)
+                        time_df = time_df.resample('D').size().reset_index()
+                        time_df.columns = [time_col, 'count']
+                        
+                        fig = go.Figure()
+                        fig.add_trace(go.Bar(
+                            x=time_df[time_col],
+                            y=time_df['count'],
+                            marker_color='rgba(0, 242, 255, 0.7)',
+                            marker_line=dict(color='rgba(0, 255, 198, 0.5)', width=1)
+                        ))
+                        
+                        fig.update_layout(
+                            template="plotly_dark",
+                            plot_bgcolor='rgba(23, 28, 38, 0.8)',
+                            paper_bgcolor='rgba(23, 28, 38, 0.8)',
+                            margin=dict(l=10, r=10, t=10, b=10),
+                            height=300,
+                            xaxis=dict(
+                                title=time_col,
+                                title_font=dict(color='#00f2ff')
+                            ),
+                            yaxis=dict(
+                                title="Document Count",
+                                title_font=dict(color='#00f2ff'),
+                                gridcolor='rgba(26, 32, 44, 0.8)',
+                            ),
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No time fields available in the dataset")
+        
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+    with tab3:
+        if 'df' in locals():
+            st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
+            st.markdown("<div class='panel-header'>ANOMALY DETECTION</div>", unsafe_allow_html=True)
+            
+            # Detect timestamp columns for time series analysis
+            timestamp_cols = detect_timestamp_cols_cached(df)
+            
+            if not timestamp_cols:
+                st.warning("⚠️ No timestamp columns detected in this dataset. Detection analysis requires time series data.")
+            else:
+                # Interface for selecting time column and detection parameters
+                col1, col2, col3 = st.columns([2, 1, 1])
+                
+                with col1:
+                    selected_time_col = st.selectbox(
+                        "Select timestamp column",
+                        timestamp_cols,
+                        key="detection_time_col"
+                    )
+                
+                with col2:
+                    ema_window = st.slider(
+                        "EMA Window Size",
+                        min_value=5,
+                        max_value=100,
+                        value=20,
+                        step=5,
+                        key="ema_window",
+                        help="Window size for Exponential Moving Average calculation"
+                    )
+                
+                with col3:
+                    std_multiplier = st.slider(
+                        "Std Dev Channel",
+                        min_value=1.0,
+                        max_value=3.0,
+                        value=2.0,
+                        step=0.1,
+                        key="std_dev_multiplier",
+                        help="Width of the confidence channel in standard deviations"
+                    )
+                                
+                # Create time series analysis
+                try:
+                    # Ensure timestamp column is properly formatted
+                    time_df = df.copy()
+                    if not pd.api.types.is_datetime64_any_dtype(time_df[selected_time_col]):
+                        time_df = parse_timestamp(time_df, selected_time_col)
+                    
+                    # Determine appropriate time resolution based on data range
+                    min_date = time_df[selected_time_col].min()
+                    max_date = time_df[selected_time_col].max()
+                    date_range = (max_date - min_date).total_seconds()
+                    
+                    # Dynamically adjust frequency based on data range and point count
+                    # Aim for at least 30-50 data points for good visualization
+                    if date_range < 3600:  # Less than 1 hour
+                        freq = '30S'  # 30 seconds
+                    elif date_range < 86400:  # Less than 1 day
+                        freq = '5min'
+                    elif date_range < 604800:  # Less than 1 week
+                        freq = '1H'
+                    elif date_range < 2592000:  # Less than 1 month
+                        freq = '6H'
+                    else:
+                        freq = '1D'
+                    
+                    # Log the frequency for debugging
+                    st.write(f"Time range: {min_date} to {max_date} ({date_range:.1f} seconds). Using frequency: {freq}")
+                    
+                    # Create time series with consistent frequency - improved method
+                    # First create a proper datetime index
+                    time_df = time_df.set_index(selected_time_col)
+                    
+                    # Group by time intervals and count occurrences
+                    ts_counts = time_df.groupby(pd.Grouper(freq=freq)).size()
+                    
+                    # Convert back to dataframe for plotting
+                    ts_data = ts_counts.reset_index()
+                    ts_data.columns = [selected_time_col, 'count']
+                    
+                    # Check if we have enough data points
+                    if len(ts_data) <= ema_window:
+                        # If not enough points with current frequency, use a coarser frequency
+                        st.warning(f"Only found {len(ts_data)} time points with {freq} frequency. Trying a coarser grouping.")
+                        
+                        # Try a coarser frequency to get more data points
+                        if freq == '30S':
+                            new_freq = '1min'
+                        elif freq == '5min':
+                            new_freq = '15min'
+                        elif freq == '1H':
+                            new_freq = '4H'
+                        elif freq == '6H':
+                            new_freq = '1D'
                         else:
-                            st.info("No time fields available in the dataset")
+                            new_freq = '1W'
+                            
+                        # Regroup with new frequency
+                        time_df = df.copy()
+                        if not pd.api.types.is_datetime64_any_dtype(time_df[selected_time_col]):
+                            time_df = parse_timestamp(time_df, selected_time_col)
+                        time_df = time_df.set_index(selected_time_col)
+                        
+                        ts_counts = time_df.groupby(pd.Grouper(freq=new_freq)).size()
+                        ts_data = ts_counts.reset_index()
+                        ts_data.columns = [selected_time_col, 'count']
+                        
+                        st.write(f"Adjusted to {new_freq} frequency, now have {len(ts_data)} time points.")
+                    
+                    # Now check if we have valid data after grouping
+                    if len(ts_data) > ema_window:
+                        # Calculate EMA and continue with the rest of your code
+                        ts_data['ema'] = ts_data['count'].ewm(span=ema_window, adjust=False).mean()
+                    
+                        # Calculate standard deviation for confidence channel
+                        rolling_std = ts_data['count'].rolling(window=ema_window).std()
+                        ts_data['upper_band'] = ts_data['ema'] + (rolling_std * std_multiplier)
+                        ts_data['lower_band'] = ts_data['ema'] - (rolling_std * std_multiplier)
+                        ts_data['lower_band'] = ts_data['lower_band'].clip(lower=0)  # Prevent negative values
+                        
+                        # Create cyberpunk-styled visualization
+                        fig = go.Figure()
+                        
+                        # Add confidence channel as a filled area
+                        fig.add_trace(go.Scatter(
+                            x=ts_data[selected_time_col],
+                            y=ts_data['upper_band'],
+                            mode='lines',
+                            line=dict(width=0, color='rgba(255, 89, 0, 0)'),
+                            showlegend=False
+                        ))
+                        
+                        fig.add_trace(go.Scatter(
+                            x=ts_data[selected_time_col],
+                            y=ts_data['lower_band'],
+                            mode='lines',
+                            line=dict(width=0, color='rgba(255, 89, 0, 0)'),
+                            fill='tonexty',
+                            fillcolor='rgba(0, 242, 255, 0.15)',
+                            name=f'{std_multiplier}σ Channel',
+                            hoverinfo='skip'
+                        ))
+                        
+                        # Add the main count line
+                        fig.add_trace(go.Scatter(
+                            x=ts_data[selected_time_col],
+                            y=ts_data['count'],
+                            mode='lines',
+                            line=dict(color='#00f2ff', width=1.5, dash='solid'),
+                            name='Event Count',
+                            hovertemplate='%{y} events<br>%{x}<extra></extra>'
+                        ))
+                        
+                        # Add the EMA line
+                        fig.add_trace(go.Scatter(
+                            x=ts_data[selected_time_col],
+                            y=ts_data['ema'],
+                            mode='lines',
+                            line=dict(color='#ff5900', width=2.5),
+                            name=f'EMA-{ema_window}',
+                            hovertemplate='EMA: %{y:.1f}<br>%{x}<extra></extra>'
+                        ))
+                        
+                        # Identify potential anomalies (points outside the confidence channel)
+                        anomalies = ts_data[(ts_data['count'] > ts_data['upper_band']) | 
+                                        (ts_data['count'] < ts_data['lower_band'])]
+                        
+                        if not anomalies.empty:
+                            fig.add_trace(go.Scatter(
+                                x=anomalies[selected_time_col],
+                                y=anomalies['count'],
+                                mode='markers',
+                                marker=dict(
+                                    symbol='circle',
+                                    size=10,
+                                    color='#ff3864',
+                                    line=dict(color='#ffffff', width=1),
+                                ),
+                                name='Anomalies',
+                                hovertemplate='Anomaly: %{y} events<br>%{x}<extra></extra>'
+                            ))
+                        
+                        # Apply cyberpunk styling
+                        fig.update_layout(
+                            template="plotly_dark",
+                            plot_bgcolor='rgba(23, 28, 38, 0.8)',
+                            paper_bgcolor='rgba(0, 0, 0, 0)',
+                            margin=dict(l=10, r=10, t=30, b=10),
+                            height=400,
+                            legend=dict(
+                                orientation="h",
+                                y=1.02,
+                                x=0.5,
+                                xanchor="center",
+                                font=dict(color='#d8d9da', size=10),
+                                bgcolor='rgba(23, 28, 38, 0.7)',
+                                bordercolor='rgba(0, 242, 255, 0.2)'
+                            ),
+                            xaxis=dict(
+                                title=None,
+                                showgrid=True,
+                                gridcolor='rgba(26, 32, 44, 0.8)',
+                                showline=True,
+                                linecolor='rgba(0, 242, 255, 0.5)',
+                                tickfont=dict(color='#d8d9da')
+                            ),
+                            yaxis=dict(
+                                title='Event Count',
+                                showgrid=True,
+                                gridcolor='rgba(26, 32, 44, 0.8)',
+                                showline=True,
+                                linecolor='rgba(0, 242, 255, 0.5)',
+                                tickfont=dict(color='#d8d9da'),
+                                title_font=dict(color='#00f2ff')
+                            ),
+                            hovermode='closest'
+                        )
+                        
+                        # Add a subtle glow effect around the plot
+                        fig.update_layout(
+                            shapes=[
+                                # Bottom border with gradient
+                                dict(
+                                    type="rect",
+                                    xref="paper", yref="paper",
+                                    x0=0, y0=0, x1=1, y1=0.02,
+                                    line_width=0,
+                                    fillcolor="rgba(0, 242, 255, 0.3)",
+                                    layer="below"
+                                ),
+                                # Top border with gradient
+                                dict(
+                                    type="rect",
+                                    xref="paper", yref="paper",
+                                    x0=0, y0=0.98, x1=1, y1=1,
+                                    line_width=0,
+                                    fillcolor="rgba(255, 89, 0, 0.3)",
+                                    layer="below"
+                                )
+                            ]
+                        )
+                        
+                        # Add grid effect in background
+                        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(26, 32, 44, 0.8)')
+                        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(26, 32, 44, 0.8)')
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        # Display anomaly statistics if anomalies detected
+                        if not anomalies.empty:
+                            anomaly_percent = (len(anomalies) / len(ts_data)) * 100
+                            
+                            # Create metrics row
+                            metric_cols = st.columns(4)
+                            with metric_cols[0]:
+                                create_metric_card("TOTAL TIMEPOINTS", f"{len(ts_data)}")
+                            with metric_cols[1]:
+                                create_metric_card("ANOMALIES", f"{len(anomalies)}")
+                            with metric_cols[2]:
+                                create_metric_card("ANOMALY RATE", f"{anomaly_percent:.1f}%")
+                            with metric_cols[3]:
+                                create_metric_card("CONFIDENCE", f"{std_multiplier}σ")
+                            
+                            # Show anomaly details
+                            with st.expander("🔍 View Anomaly Details", expanded=False):
+                                # Calculate percentage deviation from expected (EMA)
+                                anomalies['deviation'] = ((anomalies['count'] - anomalies['ema']) / anomalies['ema'] * 100).round(1)
+                                anomalies_display = anomalies[[selected_time_col, 'count', 'ema', 'deviation']].copy()
+                                anomalies_display.columns = ['Timestamp', 'Event Count', 'Expected (EMA)', 'Deviation %']
+                                st.dataframe(anomalies_display, use_container_width=True)
+                    else:
+                        st.warning(f"⚠️ Not enough data points for analysis. Need at least {ema_window+1} time points, but only have {len(ts_data)}.")
+                
+                except Exception as e:
+                    st.error(f"Error during time series analysis: {str(e)}")
+                    st.exception(e)
+            
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            # Additional analysis panel
+            st.markdown("<div class='grafana-panel'>", unsafe_allow_html=True)
+            st.markdown("<div class='panel-header'>PATTERN DETECTION</div>", unsafe_allow_html=True)
+            
+            # Placeholder for additional anomaly detection functionality
+            st.info("🔍 More detection algorithms coming soon. Stay tuned!")
             
             st.markdown("</div>", unsafe_allow_html=True)
         else:
             st.info("Please upload a file in the Dashboard tab first")
-
 if __name__ == "__main__":
     main()
