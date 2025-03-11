@@ -46,6 +46,7 @@ docker run -p 8501:8501 oopsise
 ```
 
 The application will be available at [http://localhost:8501](http://localhost:8501)
+Or online at [https://oopsise.streamlit.app/](https://oopsise.streamlit.app/)
 
 ## 📚 Usage Guide
 
