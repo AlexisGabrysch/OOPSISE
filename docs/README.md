@@ -112,4 +112,7 @@ Contributions to OOPSISE are welcome! Please follow these steps:
 ## 👥 Team
 - Alexis Gabrysch
 - Antoine Oruezabala
+- Jeremy Girault
+- Baptiste Clochard
+- Valentin Freychet
 
