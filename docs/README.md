@@ -1,7 +1,7 @@
-# 🚀 OOPSISE | Advanced Network Data Analytics Platform
+# 🚀 CYBERMETRICS | Advanced Network Data Analytics Platform
 
 ## 📊 Overview
-OOPSISE is a cyberpunk-styled data analytics platform specifically designed for network data analysis. Built with Streamlit, this application provides powerful data visualization and machine learning capabilities with a unique retrofuturistic interface inspired by Grafana and Kibana.
+CYBERMETRICS is a cyberpunk-styled data analytics platform specifically designed for network data analysis. Built with Streamlit, this application provides powerful data visualization and machine learning capabilities with a unique retrofuturistic interface inspired by Grafana and Kibana.
 
 ## ✨ Key Features
 - **Interactive Data Dashboard**: Visualize complex network data with cyberpunk-styled charts and metrics
